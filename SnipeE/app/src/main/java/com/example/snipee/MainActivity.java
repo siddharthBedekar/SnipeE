@@ -1,5 +1,6 @@
 package com.example.snipee;
 
+
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Context;
@@ -11,6 +12,13 @@ import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+
+//import io.socket.client.Ack;
+import io.socket.client.IO;
+import io.socket.client.Socket;
+import io.socket.emitter.Emitter;
+
+import java.net.URISyntaxException;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -25,7 +33,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         // remove title and make fullscreen
-        //
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -48,6 +55,27 @@ public class MainActivity extends AppCompatActivity {
 //            Log.d("test", e.toString());
 //        }
 
+        //create socket instance and confirm connection
+        Socket socket = initSocket();
+        socket.connect();
+        //on 'connect' event, send out "Connected Cell!".
+        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener(){
+            @Override
+            public void call(Object... args) {
+                //runOnUIThread use later?
+                socket.emit("message", "Cell Connected!");
+            }
+        });
+
+
+    }
+
+    private Socket initSocket(){
+        try {
+            return IO.socket("http://192.168.0.233:5000");
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private int[] scaleCoordinates(double scaleX, double scaleY, int boardX, int boardY) throws Exception{
