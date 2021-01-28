@@ -21,6 +21,9 @@ print("Starting Server...")
 
 msg ='x1y1'
 
+def runServer():
+	socketio.run(app, host='0.0.0.0')
+
 app = Flask(__name__)
 #app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app)
@@ -40,7 +43,7 @@ def puckThis(data):
 
 if __name__ == '__main__':
     # socketio.run(app)
-    threading.Thread(target=app.run).start() #start on main thread
+    threading.Thread(target=runServer).start() #start on main thread
 
 
 print("...Server started")
