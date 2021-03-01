@@ -6,10 +6,91 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <ImageView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        />
+        <RelativeLayout
+            android:id="@+id/gameLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+<!--            background static draw-->
+            <ImageView
+                android:id="@+id/background"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:srcCompat="@android:drawable/screen_background_light" />
+
+
+            <ImageView
+                android:id="@+id/centerLine"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                app:srcCompat="@drawable/red_underline" />
+
+            <ImageView
+                android:id="@+id/down_semicircle"
+                android:layout_width="120dp"
+                android:layout_height="53dp"
+                android:layout_alignParentTop="true"
+                android:layout_centerHorizontal="true"
+                app:srcCompat="@drawable/rect" />
+
+            <ImageView
+                android:id="@+id/up_semicircle"
+                android:layout_width="120dp"
+                android:layout_height="53dp"
+                android:layout_centerHorizontal="true"
+                android:layout_alignParentBottom="true"
+                app:srcCompat="@drawable/rect" />
+
+            <ImageView
+                android:id="@+id/center_circle"
+                android:layout_width="107dp"
+                android:layout_height="67dp"
+                android:layout_centerHorizontal="true"
+                android:layout_centerVertical="true"
+                app:srcCompat="@drawable/center_circle" />
+
+<!--            non-static imageViews-->
+
+            <ImageView
+                android:id="@+id/opponentStriker"
+                android:layout_width="53dp"
+                android:layout_height="53dp"
+                android:layout_alignParentTop="true"
+                android:layout_centerHorizontal="true"
+                android:adjustViewBounds="true"
+                android:src="@drawable/striker_green"
+                />
+
+            <ImageView
+                android:id="@+id/robotStriker"
+                android:layout_width="53dp"
+                android:layout_height="53dp"
+                android:layout_alignParentBottom="true"
+                android:layout_centerHorizontal="true"
+                android:adjustViewBounds="true"
+                android:src="@drawable/striker_red"
+                />
+
+            <ImageView
+                android:id="@+id/userStriker"
+                android:layout_width="53dp"
+                android:layout_height="53dp"
+                android:layout_alignParentBottom="true"
+                android:layout_centerHorizontal="true"
+                android:adjustViewBounds="true"
+                android:src="@drawable/striker_transparent" />
+
+            <ImageView
+                android:id="@+id/puck"
+                android:layout_width="53dp"
+                android:layout_height="53dp"
+                android:layout_centerVertical="true"
+                android:layout_centerHorizontal="true"
+                android:adjustViewBounds="true"
+                android:src="@drawable/puck"/>
+
+
+        </RelativeLayout>
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
