@@ -42,11 +42,8 @@ public class MainActivity extends AppCompatActivity {
     private int desiredX, desiredY;
 
     //camera dimensions
-    final int CAM_X = 640;
-    final int CAM_Y = 480;
-
-    //dont recall what this is for but update coordinates somehow
-    private Handler updateCoordsHandler;
+    final int CAM_X = 622;
+    final int CAM_Y = 390;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,7 +56,8 @@ public class MainActivity extends AppCompatActivity {
 
         this.configureScaling();
         this.socket = initSocket();
-        this.attachSocketListeners();
+        this.attachSocketListeners();   //for server to client comms
+
         this.attachTouchListeners();
 
     }
@@ -81,7 +79,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
     }
-
 
     //--------------------------Game Methods-------------------------
     private void runGame(){
@@ -145,11 +142,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void attachSocketListeners(){
-        // Attach event listeners
+        // Attach event listeners for sockets
         socket.on(Socket.EVENT_CONNECT, new Emitter.Listener(){
             @Override
             public void call(Object... args) {
-                String s = Build.MANUFACTURER + Build.PRODUCT + "Connected";
+                String s = Build.PRODUCT + " Connected";
                 socket.emit("message", s);
                 runOnUiThread(new Runnable() {
                     @Override
@@ -160,11 +157,27 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        socket.on("updatePuck", new Emitter.Listener(){
+            @Override
+            public void call(Object... args) {
+                ImageView opponentStriker = findViewById(R.id.opponentStriker);
+                //split args into two strings
+                String paramString = (String) args[0];
+                String[] params = (paramString).split(",");
+
+                int[] scaledCoords = toClientScaling(Float.parseFloat(params[0]), Float.parseFloat(params[1]));
+//                Log.d("test", paramString + "   " + scaledCoords[0] + "," + scaledCoords[1]);
+                opponentStriker.setX(scaledCoords[0]);
+                opponentStriker.setY(scaledCoords[1]);
+            }
+        });
+
         socket.on(Socket.EVENT_DISCONNECT, new Emitter.Listener(){
             @Override
             public void call(Object... args) {
                 //runOnUIThread use later?
-                socket.emit("message", "Cell Connected!");
+                String s = Build.PRODUCT + " Disconnected";
+                socket.emit("message", s);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -176,18 +189,23 @@ public class MainActivity extends AppCompatActivity {
     }
 
     //--------------------------Scaling Methods-------------------------
-    private int scaleX( int boardX)   throws Exception{
-        if (boardX > CAM_X){
-            throw new Exception("Input board x out of bound.");
-        }
-        return (int)Math.round(boardX*this.scaleFactorX);
+    private int[] toServerScaling(double clientX, double clientY) throws Exception{
+        int[] result = new int[2];
+
+        // change orientation
+        result[0] = (int) Math.round(clientY/this.scaleFactorY);
+        result[1] = (int) Math.round(clientX/this.scaleFactorX);
+        return result;
     }
 
-    private int scaleY(int boardY)   throws Exception{
-        if (boardY > CAM_Y){
-            throw new Exception("Input board y out of bound.");
-        }
-        return (int)Math.round(boardY*this.scaleFactorY);
+    private int[] toClientScaling(double serverX, double serverY){
+        int[] result = new int[2];
+
+        //change orientation
+        //subtract to make origin top left for mobile client
+        result[0] =  this.screenBoundX - (int)Math.round(serverY*this.scaleFactorX);
+        result[1] = (int) Math.round(serverX * this.scaleFactorY);
+        return result;
     }
 
     private void configureScaling(){
@@ -196,8 +214,9 @@ public class MainActivity extends AppCompatActivity {
         this.screenBoundY = getDisplayDimensionY();
 
         //scaling and parameters
-        this.scaleFactorX = (float)this.screenBoundX/CAM_X;
-        this.scaleFactorY = (float)this.screenBoundY/CAM_Y;
+        this.scaleFactorX = (float)this.screenBoundX/CAM_Y; //rotated 90 deg
+        this.scaleFactorY = (float)this.screenBoundY/CAM_X; //rotated 90 deg
+//        Log.d("test", screenBoundX +" "+ screenBoundY);
         this.goal_len = Math.round((float)this.screenBoundX/3);
         this.striker_len = (this.goal_len/2);
         this.puck_len = (int) Math.round(this.striker_len/1.2);
