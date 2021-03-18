@@ -5,45 +5,37 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.Toast;
-
-//import io.socket.client.Ack;
-import org.w3c.dom.Document;
 
 import io.socket.client.IO;
 import io.socket.client.Socket;
-import io.socket.emitter.Emitter;
 
 import java.net.URISyntaxException;
 
 
 public class MainActivity extends AppCompatActivity {
-    private double scaleFactorX, scaleFactorY;
-    private int goal_len, striker_len, puck_len;
+    private float scaleFactorX, scaleFactorY;
+    private int striker_len;
+    private int puck_len;
     private Socket socket;
     private int screenBoundX, screenBoundY;
+    private Coord_filter filter;    //moving average filter
+    private Coord_Interpolator interp; //interpolator
 
     private int desiredX, desiredY;
 
-    //camera dimensions
-    final int CAM_X = 622;
-    final int CAM_Y = 390;
+    //CONSTANTS
+    final int CAM_X = 640;
+    final int CAM_Y = 480;
+    final int FILTER_WINDOW_SIZE = 5;
+    final String SERVER_URI = "http://192.168.1.48:5000";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,12 +46,12 @@ public class MainActivity extends AppCompatActivity {
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_main);
 
+        this.filter = new Coord_filter(FILTER_WINDOW_SIZE);
+        this.interp = new Coord_Interpolator();
         this.configureScaling();
         this.socket = initSocket();
-        this.attachSocketListeners();   //for server to client comms
-
+        this.attachSocketListeners();   //for server to client socket comms
         this.attachTouchListeners();
-
     }
 
     @Override
@@ -100,18 +92,17 @@ public class MainActivity extends AppCompatActivity {
 
                 case MotionEvent.ACTION_MOVE: {
                     int newX, newY;
-                    int halfx = Math.round((float)this.striker_len/2);
+                    int half = Math.round((float)this.striker_len/2);
 
                     newX = (int) event.getRawX();
                     newY = (int) event.getRawY();
-
 //                    Log.d("test1", Integer.toString(newX) + ", " + Integer.toString(newY));
 
-                    if (newX > this.screenBoundX - halfx){
-                        newX = this.screenBoundX - halfx;
+                    if (newX > this.screenBoundX - half){
+                        newX = this.screenBoundX - half;
                     }
-                    else if(newX < halfx){
-                        newX = halfx;
+                    else if(newX < half){
+                        newX = half;
                     }
 
                     if (newY > this.screenBoundY){
@@ -120,10 +111,10 @@ public class MainActivity extends AppCompatActivity {
                     else if(newY < this.screenBoundY/2 + this.striker_len){
                         newY = this.screenBoundY/2 + this.striker_len;
                     }
-
 //                    Log.d("test2", Integer.toString(screenBoundX) + ", " + Integer.toString(screenBoundY));
-
-                    userStriker.setX(newX - halfx);
+                    this.desiredX = (newX-half);
+                    this.desiredY = (newY-half);
+                    userStriker.setX(newX - half);
                     userStriker.setY(newY - this.striker_len);  //want it to stay above finger
                     break;
                 }
@@ -135,7 +126,7 @@ public class MainActivity extends AppCompatActivity {
     //--------------------------Socket Methods-------------------------
     private Socket initSocket(){
         try {
-            return IO.socket("http://192.168.0.233:5000");
+            return IO.socket(SERVER_URI);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -143,68 +134,128 @@ public class MainActivity extends AppCompatActivity {
 
     private void attachSocketListeners(){
         // Attach event listeners for sockets
-        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener(){
-            @Override
-            public void call(Object... args) {
-                String s = Build.PRODUCT + " Connected";
-                socket.emit("message", s);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(getActivity(), "Connected", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
+
+        // CONNECT EVENT----------------------------------------------------------------------------
+        socket.on(Socket.EVENT_CONNECT, args -> {
+            String s = Build.PRODUCT + " Connected";
+            socket.emit("message", s);
+            runOnUiThread(() -> Toast.makeText(getActivity(), "Connected to " + SERVER_URI,
+                                                Toast.LENGTH_SHORT).show());
         });
 
-        socket.on("updatePuck", new Emitter.Listener(){
-            @Override
-            public void call(Object... args) {
-                ImageView opponentStriker = findViewById(R.id.opponentStriker);
-                //split args into two strings
-                String paramString = (String) args[0];
-                String[] params = (paramString).split(",");
+        // PERSONAL PING TEST EVENT-----------------------------------------------------------------
+        socket.on("customPing", args -> socket.emit("customPong","got it"));
 
-                int[] scaledCoords = toClientScaling(Float.parseFloat(params[0]), Float.parseFloat(params[1]));
-//                Log.d("test", paramString + "   " + scaledCoords[0] + "," + scaledCoords[1]);
-                opponentStriker.setX(scaledCoords[0]);
-                opponentStriker.setY(scaledCoords[1]);
-            }
+        // PUCK POSITION UPDATE---------------------------------------------------------------------
+        socket.on("updatePuck", args -> {
+            ImageView puck = findViewById(R.id.puck);
+            //split args into two strings
+            String paramString = (String) args[0];
+            String[] params = (paramString).split(",");
+
+            float[] newCoords;
+
+            //apply scaling
+            newCoords = toClientScaling(Float.parseFloat(params[0]),
+                                        Float.parseFloat(params[1]));
+
+            //apply filter
+            newCoords = filter.getFilteredCoords(newCoords[0],
+                                                 newCoords[1]);
+
+            //apply interpolation
+            newCoords = interp.interpolate(newCoords[0],
+                                           newCoords[1]);
+
+            puck.setX(newCoords[0]-((float)puck_len/2));
+            puck.setY(newCoords[1]-((float)puck_len/2));
         });
 
-        socket.on(Socket.EVENT_DISCONNECT, new Emitter.Listener(){
-            @Override
-            public void call(Object... args) {
-                //runOnUIThread use later?
-                String s = Build.PRODUCT + " Disconnected";
-                socket.emit("message", s);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(getActivity(), "Disconnected", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
+        // ROBOT STRIKER POSITION UPDATE------------------------------------------------------------
+        socket.on("updateRobot", args ->{
+            //send desired robot striker location
+            float[] scaledDesired = toServerScaling(this.desiredX, this.desiredY);
+            socket.emit("desiredStrikerLocation", scaledDesired[0] +
+                                                        "," + scaledDesired[1]);
+
+            //receive new robot striker location
+            ImageView robotStriker = findViewById(R.id.robotStriker);
+            //split args into two strings
+            String paramString = (String) args[0];
+            String[] params = (paramString).split(",");
+
+            float[] newCoords;
+
+            //apply scaling
+            newCoords = toClientScaling(Float.parseFloat(params[0]),
+                    Float.parseFloat(params[1]));
+
+            //apply filter
+            newCoords = filter.getFilteredCoords(newCoords[0],
+                    newCoords[1]);
+
+            //apply interpolation
+            newCoords = interp.interpolate(newCoords[0],
+                    newCoords[1]);
+
+            robotStriker.setX(newCoords[0]-((float)striker_len/2));
+            robotStriker.setY(newCoords[1]-((float)striker_len/2));
+        });
+
+        // HUMAN STRIKER POSITION UPDATE------------------------------------------------------------
+        socket.on("updateHuman", args ->{
+            ImageView humanStriker = findViewById(R.id.userStriker);
+            //split args into two strings
+            String paramString = (String) args[0];
+            String[] params = (paramString).split(",");
+
+            float[] newCoords;
+
+            //apply scaling
+            newCoords = toClientScaling(Float.parseFloat(params[0]),
+                    Float.parseFloat(params[1]));
+
+            //apply filter
+            newCoords = filter.getFilteredCoords(newCoords[0],
+                    newCoords[1]);
+
+            //apply interpolation
+            newCoords = interp.interpolate(newCoords[0],
+                    newCoords[1]);
+
+            humanStriker.setX(newCoords[0]-((float)striker_len/2));
+            humanStriker.setY(newCoords[1]-((float)striker_len/2));
+        });
+
+        // DISCONNECT EVENT-------------------------------------------------------------------------
+        socket.on(Socket.EVENT_DISCONNECT, args -> {
+            String s = Build.PRODUCT + " Disconnected";
+            socket.emit("message", s);
+            runOnUiThread(() -> Toast.makeText(getActivity(),
+                                "Disconnected from " + SERVER_URI,
+                                Toast.LENGTH_SHORT).show());
         });
     }
 
     //--------------------------Scaling Methods-------------------------
-    private int[] toServerScaling(double clientX, double clientY) throws Exception{
-        int[] result = new int[2];
+    private float[] toServerScaling(float clientX, float clientY){
+        //scale to server coordinates
+        float[] result = new float[2];
 
         // change orientation
-        result[0] = (int) Math.round(clientY/this.scaleFactorY);
+        result[0] = clientY/this.scaleFactorY;
         result[1] = (int) Math.round(clientX/this.scaleFactorX);
         return result;
     }
 
-    private int[] toClientScaling(double serverX, double serverY){
-        int[] result = new int[2];
+    private float[] toClientScaling(float serverX, float serverY){
+        //scale to client coordinates
+        float[] result = new float[2];
 
         //change orientation
         //subtract to make origin top left for mobile client
-        result[0] =  this.screenBoundX - (int)Math.round(serverY*this.scaleFactorX);
-        result[1] = (int) Math.round(serverX * this.scaleFactorY);
+        result[0] =  this.screenBoundX - serverY*this.scaleFactorX;
+        result[1] = serverX*this.scaleFactorY;
         return result;
     }
 
@@ -217,17 +268,17 @@ public class MainActivity extends AppCompatActivity {
         this.scaleFactorX = (float)this.screenBoundX/CAM_Y; //rotated 90 deg
         this.scaleFactorY = (float)this.screenBoundY/CAM_X; //rotated 90 deg
 //        Log.d("test", screenBoundX +" "+ screenBoundY);
-        this.goal_len = Math.round((float)this.screenBoundX/3);
-        this.striker_len = (this.goal_len/2);
+        int goal_len = Math.round((float) this.screenBoundX / 3);
+        this.striker_len = (goal_len /2);
         this.puck_len = (int) Math.round(this.striker_len/1.2);
 
         //make goal size to scale
         ImageView semicircle_d = findViewById(R.id.down_semicircle);
-        semicircle_d.getLayoutParams().width = this.goal_len;
+        semicircle_d.getLayoutParams().width = goal_len;
         semicircle_d.requestLayout();
 
         ImageView semicircle_u = findViewById(R.id.up_semicircle);
-        semicircle_u.getLayoutParams().width = this.goal_len;
+        semicircle_u.getLayoutParams().width = goal_len;
         semicircle_u.requestLayout();
 
         //make striker, and puck size to scale:
