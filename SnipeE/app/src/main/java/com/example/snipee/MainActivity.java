@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -12,6 +13,8 @@ import android.view.MotionEvent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import io.socket.client.IO;
@@ -28,14 +31,22 @@ public class MainActivity extends AppCompatActivity {
     private int screenBoundX, screenBoundY;
     private Coord_filter filter;    //moving average filter
     private Coord_Interpolator interp; //interpolator
+    private Rect bound;
+    private boolean dataValid;
 
-    private int desiredX, desiredY;
+    private float desiredX, desiredY;
 
     //CONSTANTS
     final int CAM_X = 640;
     final int CAM_Y = 480;
     final int FILTER_WINDOW_SIZE = 5;
-    final String SERVER_URI = "http://192.168.1.48:5000";
+    final String SERVER_URI = "http://192.168.1.27:5000";
+    final int BOUND_MARGIN_X = 92;
+    final int BOUND_MARGIN_Y = 319;
+    final int CENTER_X = 544;
+    final int CENTER_Y = 1882;
+    final int BOUND_OFFSET = 175;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,8 +61,10 @@ public class MainActivity extends AppCompatActivity {
         this.interp = new Coord_Interpolator();
         this.configureScaling();
         this.socket = initSocket();
-        this.attachSocketListeners();   //for server to client socket comms
+        this.bound = new Rect( BOUND_MARGIN_X, (screenBoundY/2)+BOUND_MARGIN_Y+BOUND_OFFSET,
+                screenBoundX-BOUND_MARGIN_X, screenBoundY-BOUND_MARGIN_Y+BOUND_OFFSET);
         this.attachTouchListeners();
+        this.attachSocketListeners();   //for server to client socket comms
     }
 
     @Override
@@ -91,31 +104,33 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 case MotionEvent.ACTION_MOVE: {
-                    int newX, newY;
-                    int half = Math.round((float)this.striker_len/2);
+                    float newX, newY;
+                    float half = (float)this.striker_len/2;
 
-                    newX = (int) event.getRawX();
-                    newY = (int) event.getRawY();
-//                    Log.d("test1", Integer.toString(newX) + ", " + Integer.toString(newY));
+                    newX = event.getRawX();
+                    newY = event.getRawY();
+//                    Log.d("test1", bound.left + "," + bound.top + "," + bound.right + "," + bound.bottom + "||||" + newX + ", " + newY);
 
-                    if (newX > this.screenBoundX - half){
-                        newX = this.screenBoundX - half;
+                    if (newX > this.bound.right){
+                        newX = this.bound.right;
                     }
-                    else if(newX < half){
-                        newX = half;
+                    else if(newX < this.bound.left){
+                        newX = this.bound.left;
                     }
 
-                    if (newY > this.screenBoundY){
-                        newY = this.screenBoundY;
+                    if (newY > this.bound.bottom+half){
+                        newY =  this.bound.bottom+half;
                     }
-                    else if(newY < this.screenBoundY/2 + this.striker_len){
-                        newY = this.screenBoundY/2 + this.striker_len;
+                    else if(newY < this.bound.top+half){
+                        newY = this.bound.top+half;
                     }
+                    this.dataValid = newX>=bound.left && newX<=bound.right && newY>=bound.top+half && newY<=bound.bottom+half;
+//                    Log.d("test", Boolean.toString(dataValid));
 //                    Log.d("test2", Integer.toString(screenBoundX) + ", " + Integer.toString(screenBoundY));
                     this.desiredX = (newX-half);
-                    this.desiredY = (newY-half);
-                    userStriker.setX(newX - half);
-                    userStriker.setY(newY - this.striker_len);  //want it to stay above finger
+                    this.desiredY = (newY-half*2);
+                    userStriker.setX(newX-half);
+                    userStriker.setY(newY-half*2);
                     break;
                 }
             }
@@ -159,13 +174,13 @@ public class MainActivity extends AppCompatActivity {
             newCoords = toClientScaling(Float.parseFloat(params[0]),
                                         Float.parseFloat(params[1]));
 
-            //apply filter
-            newCoords = filter.getFilteredCoords(newCoords[0],
-                                                 newCoords[1]);
+//            //apply filter
+//            newCoords = filter.getFilteredCoords(newCoords[0],
+//                                                 newCoords[1]);
 
-            //apply interpolation
-            newCoords = interp.interpolate(newCoords[0],
-                                           newCoords[1]);
+//            //apply interpolation
+//            newCoords = interp.interpolate(newCoords[0],
+//                                           newCoords[1]);
 
             puck.setX(newCoords[0]-((float)puck_len/2));
             puck.setY(newCoords[1]-((float)puck_len/2));
@@ -174,9 +189,16 @@ public class MainActivity extends AppCompatActivity {
         // ROBOT STRIKER POSITION UPDATE------------------------------------------------------------
         socket.on("updateRobot", args ->{
             //send desired robot striker location
-            float[] scaledDesired = toServerScaling(this.desiredX, this.desiredY);
-            socket.emit("desiredStrikerLocation", scaledDesired[0] +
-                                                        "," + scaledDesired[1]);
+            float[] scaledDesired = toServerScaling(this.desiredX,this.desiredY);
+//            float[] scaledDesired = new float[2];
+//            scaledDesired[0] = screenBoundX-desiredX;
+//            scaledDesired[1] = desiredY;
+//            Log.d("test", Boolean.toString(dataValid) + ", " +  this.desiredX + ", " + this.desiredY + ", " + this.startx + ", " + this.starty + ", " + (this.desiredX-this.startx) + ", " + (this.desiredY-this.starty));
+            if (this.dataValid){
+                socket.emit("desiredStrikerLocation", scaledDesired[0] +
+                        "," + scaledDesired[1]);
+                Log.d("test", scaledDesired[0] + ", " + scaledDesired[1]);
+            }
 
             //receive new robot striker location
             ImageView robotStriker = findViewById(R.id.robotStriker);
@@ -190,13 +212,13 @@ public class MainActivity extends AppCompatActivity {
             newCoords = toClientScaling(Float.parseFloat(params[0]),
                     Float.parseFloat(params[1]));
 
-            //apply filter
-            newCoords = filter.getFilteredCoords(newCoords[0],
-                    newCoords[1]);
+//            //apply filter
+//            newCoords = filter.getFilteredCoords(newCoords[0],
+//                    newCoords[1]);
 
-            //apply interpolation
-            newCoords = interp.interpolate(newCoords[0],
-                    newCoords[1]);
+//            //apply interpolation
+//            newCoords = interp.interpolate(newCoords[0],
+//                    newCoords[1]);
 
             robotStriker.setX(newCoords[0]-((float)striker_len/2));
             robotStriker.setY(newCoords[1]-((float)striker_len/2));
@@ -204,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
 
         // HUMAN STRIKER POSITION UPDATE------------------------------------------------------------
         socket.on("updateHuman", args ->{
-            ImageView humanStriker = findViewById(R.id.userStriker);
+            ImageView humanStriker = findViewById(R.id.opponentStriker);
             //split args into two strings
             String paramString = (String) args[0];
             String[] params = (paramString).split(",");
@@ -215,13 +237,13 @@ public class MainActivity extends AppCompatActivity {
             newCoords = toClientScaling(Float.parseFloat(params[0]),
                     Float.parseFloat(params[1]));
 
-            //apply filter
-            newCoords = filter.getFilteredCoords(newCoords[0],
-                    newCoords[1]);
+//            //apply filter
+//            newCoords = filter.getFilteredCoords(newCoords[0],
+//                    newCoords[1]);
 
-            //apply interpolation
-            newCoords = interp.interpolate(newCoords[0],
-                    newCoords[1]);
+//            //apply interpolation
+//            newCoords = interp.interpolate(newCoords[0],
+//                    newCoords[1]);
 
             humanStriker.setX(newCoords[0]-((float)striker_len/2));
             humanStriker.setY(newCoords[1]-((float)striker_len/2));
@@ -242,9 +264,10 @@ public class MainActivity extends AppCompatActivity {
         //scale to server coordinates
         float[] result = new float[2];
 
-        // change orientation
-        result[0] = clientY/this.scaleFactorY;
-        result[1] = (int) Math.round(clientX/this.scaleFactorX);
+        // swap x and y, and swap origin for x
+        result[0] = (screenBoundY-clientY)/this.scaleFactorY;
+        result[1] = clientX/this.scaleFactorX;
+//        Log.d("test", scaleFactorX + ", " + scaleFactorY);
         return result;
     }
 
@@ -254,8 +277,8 @@ public class MainActivity extends AppCompatActivity {
 
         //change orientation
         //subtract to make origin top left for mobile client
-        result[0] =  this.screenBoundX - serverY*this.scaleFactorX;
-        result[1] = serverX*this.scaleFactorY;
+        result[0] =  serverY*this.scaleFactorX;
+        result[1] = this.screenBoundY - serverX*this.scaleFactorY;
         return result;
     }
 
@@ -283,6 +306,13 @@ public class MainActivity extends AppCompatActivity {
 
         //make striker, and puck size to scale:
         ImageView userStriker = findViewById(R.id.userStriker);
+        RelativeLayout.LayoutParams robotparams = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+        );
+        int half = Math.round(striker_len/2);
+        robotparams.setMargins(CENTER_X-half, CENTER_Y-half, CENTER_X-half, CENTER_Y-half);
+        userStriker.setLayoutParams(robotparams);
         userStriker.getLayoutParams().height = this.striker_len;
         userStriker.getLayoutParams().width = this.striker_len;
         userStriker.requestLayout(); //apply the above changes to layout
@@ -296,6 +326,14 @@ public class MainActivity extends AppCompatActivity {
         robotStriker.getLayoutParams().height = this.striker_len;
         robotStriker.getLayoutParams().width = this.striker_len;
         robotStriker.requestLayout();
+
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT
+        );
+        params.setMargins(BOUND_MARGIN_X, screenBoundY/2 + BOUND_MARGIN_Y+BOUND_OFFSET, BOUND_MARGIN_X, BOUND_MARGIN_Y-BOUND_OFFSET);
+        TextView mybox = findViewById(R.id.mybox);
+        mybox.setLayoutParams(params);
 
         ImageView puck = findViewById(R.id.puck);
         puck.getLayoutParams().height = this.puck_len;

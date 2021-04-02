@@ -1,0 +1,2 @@
+Config for pre-calibrated startup
+https://discourse.odriverobotics.com/t/skip-calibration-startup-procces/3787

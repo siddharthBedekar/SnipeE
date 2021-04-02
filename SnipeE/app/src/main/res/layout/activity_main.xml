@@ -49,6 +49,8 @@
                 android:layout_centerVertical="true"
                 app:srcCompat="@drawable/center_circle" />
 
+
+
 <!--            non-static imageViews-->
 
             <ImageView
@@ -75,7 +77,6 @@
                 android:id="@+id/userStriker"
                 android:layout_width="53dp"
                 android:layout_height="53dp"
-                android:layout_alignParentBottom="true"
                 android:layout_centerHorizontal="true"
                 android:adjustViewBounds="true"
                 android:src="@drawable/striker_transparent" />
@@ -89,8 +90,16 @@
                 android:adjustViewBounds="true"
                 android:src="@drawable/puck"/>
 
+            <TextView
+                android:id="@+id/mybox"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/box"
+                android:text=" " />
 
         </RelativeLayout>
+
+
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
