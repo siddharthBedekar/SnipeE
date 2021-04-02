@@ -17,9 +17,6 @@ import odrive
 from odrive.enums import *
 import time
 
-#for storing preset
-from ast import literal_eval as make_tuple
-
 
 # SERVER ---------------------------------------------------------------------------------------------------------------
 
@@ -40,17 +37,14 @@ y1 = 0
 #Robot
 x2 = 0
 y2 = 0
-#human 
+#human
 x3 = 0
 y3 = 0
 
 #loadOdrive
-loadO = True
+loadO = False
 
-#calibration flag
-CALIBRATING = False
-
-#socket init and event handlers -------------------------------------------------------------------
+#socket init and event handlers
 app = Flask(__name__)
 socketio = SocketIO(app, logger=False, engineio_logger=False)
 
@@ -270,181 +264,142 @@ if (loadO):
     my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
     time.sleep(0.1)
 
-if CALIBRATING:
-    print("Calibrating Object Detection...")
-    fwriteStr = ""
-    while True:
 
-        # for live video
-        _, img = cap.read()
-        #cv2.imshow("video", img)
+
+
+while True:
+    # for live video
+    _, img = cap.read()
+    #cv2.imshow("video", img)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+    # place circles
+    if counter != 4:
+        cv2.putText(img, "click 4 corners of table", (120, 250), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
+        cv2.putText(img, "TopLeft, TopRight, BottomLeft, BottomRight ", (90, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 0, 0), 2)
+
+    # once 4 points selected it will create warp feed
+    if counter == 4:
+        width, height = 640,480
+        pts1 = np.float32([ circles[0], circles[1], circles[2], circles[3] ])
+        pts2 = np.float32([ [0,0], [width,0], [0,height], [width,height] ])
+        matrix = cv2.getPerspectiveTransform(pts1,pts2)
+        imgOutput = cv2.warpPerspective(img, matrix, (width,height))
+        #cv2.imshow("warp feed", imgOutput)  # display warp feed
+        coords1 = str(circles[0]) + str(circles[1])
+        coords2 = str(circles[2]) + str(circles[3])
+        stage2 = 1                                           # stage 2 = 1
+        cv2.destroyWindow("og")
+
+    # used to place circles wherever you click
+    for i in range(0, 4):
+        cv2.circle(img, (circles[i][0], circles[i][1]), 3, (50, 50, 250), cv2.FILLED)
+
+    # enter stage 2
+    # this stage loops through 3 times, once for each object were trakcing
+    if stage2 == 1:
+
+        if onetime==1:
+            make_preset_window()
+            onetime = 2;
+
+        # make first HSV window
+        if HSV_number==1 or HSV_number==3 or HSV_number==5:
+            make_HSV_window()
+            HSV_number = HSV_number + 1   # set HSV_number = 2
+
+        imgHSV = cv2.cvtColor(imgOutput, cv2.COLOR_BGR2HSV)
+
+        # pull trackbar values into variables
+        h_min[yuv_count] = cv2.getTrackbarPos("HUE min", "HSV")
+        h_max[yuv_count] = cv2.getTrackbarPos("HUE max", "HSV")
+        s_min[yuv_count] = cv2.getTrackbarPos("SAT min", "HSV")
+        s_max[yuv_count] = cv2.getTrackbarPos("SAT max", "HSV")
+        v_min[yuv_count] = cv2.getTrackbarPos("VALUE min", "HSV")
+        v_max[yuv_count] = cv2.getTrackbarPos("VALUE max", "HSV")
+
+        # create mask
+        lower = np.array([h_min[yuv_count], s_min[yuv_count], v_min[yuv_count]])
+        upper = np.array([h_max[yuv_count], s_max[yuv_count], v_max[yuv_count]])
+        mask = cv2.inRange(imgHSV, lower, upper)
+        result = cv2.bitwise_and(imgOutput, imgOutput, mask=mask)
+
+        # display msg to user
+        if yuv_count == 0:
+            cv2.putText(imgOutput, "1) PUCK", (130, 260), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 78, 0), 2)
+        if yuv_count == 1:
+            cv2.putText(imgOutput, "2) ROBOT", (130, 260), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 78, 0), 2)
+        if yuv_count == 2:
+            cv2.putText(imgOutput, "3) HUMAN", (130, 260), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 78, 0), 2)
+
+        mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
+        cv2.putText(imgOutput, "Move taskbars until only", (130, 288), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 0, 0), 2)
+        cv2.putText(imgOutput, "your object is available", (130, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 0, 0), 2)
+        hstack1 = np.hstack([imgOutput, mask, result])
+        cv2.imshow("Original - Mask - Result", hstack1)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        # place circles
-        if counter != 4:
-            cv2.putText(img, "click 4 corners of table", (120, 250), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
-            cv2.putText(img, "TopLeft, TopRight, BottomLeft, BottomRight ", (90, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 0, 0), 2)
+        done1 = cv2.getTrackbarPos(switch1, "HSV")
 
-        # once 4 points selected it will create warp feed
-        if counter == 4:
-            width, height = 640,480
-            pts1 = np.float32([ circles[0], circles[1], circles[2], circles[3] ])
-            pts2 = np.float32([ [0,0], [width,0], [0,height], [width,height] ])
-            matrix = cv2.getPerspectiveTransform(pts1,pts2)
-            imgOutput = cv2.warpPerspective(img, matrix, (width,height))
-            #cv2.imshow("warp feed", imgOutput)  # display warp feed
-            coords1 = str(circles[0]) + str(circles[1])
-            coords2 = str(circles[2]) + str(circles[3])
+        preset_done = cv2.getTrackbarPos("Slide >  ", "Preset Menu - Slide to load presets")
 
-            stage2 = 1                                           # stage 2 = 1
-            cv2.destroyWindow("og")
+        if preset_done == 1:
+            # for object 1  # puck
+            h_min[0] = 9
+            h_max[0] = 45
+            s_min[0] = 55
+            s_max[0] = 125
+            v_min[0] = 140
+            v_max[0] = 196
+            # for object 2 # robot
+            h_min[1] = 59
+            h_max[1] =93
+            s_min[1] =47
+            s_max[1] =130
+            v_min[1] =143
+            v_max[1] =210
+            # for object 3 # human
+            h_min[2] =119
+            h_max[2] =136
+            s_min[2] =29
+            s_max[2] =108
+            v_min[2] =138
+            v_max[2] =207
 
-        # used to place circles wherever you click
-        for i in range(0, 4):
-            cv2.circle(img, (circles[i][0], circles[i][1]), 3, (50, 50, 250), cv2.FILLED)
-
-        # enter stage 2
-        # this stage loops through 3 times, once for each object were trakcing
-        if stage2 == 1:
-
-            if onetime==1:
-                make_preset_window()
-                onetime = 2
-
-            # make first HSV window
-            if HSV_number==1 or HSV_number==3 or HSV_number==5:
-                make_HSV_window()
-                HSV_number = HSV_number + 1   # set HSV_number = 2
-
-            imgHSV = cv2.cvtColor(imgOutput, cv2.COLOR_BGR2HSV)
-
-            # pull trackbar values into variables
-            h_min[yuv_count] = cv2.getTrackbarPos("HUE min", "HSV")
-            h_max[yuv_count] = cv2.getTrackbarPos("HUE max", "HSV")
-            s_min[yuv_count] = cv2.getTrackbarPos("SAT min", "HSV")
-            s_max[yuv_count] = cv2.getTrackbarPos("SAT max", "HSV")
-            v_min[yuv_count] = cv2.getTrackbarPos("VALUE min", "HSV")
-            v_max[yuv_count] = cv2.getTrackbarPos("VALUE max", "HSV")
-
-            # create mask
-            lower = np.array([h_min[yuv_count], s_min[yuv_count], v_min[yuv_count]])
-            upper = np.array([h_max[yuv_count], s_max[yuv_count], v_max[yuv_count]])
-            mask = cv2.inRange(imgHSV, lower, upper)
-            result = cv2.bitwise_and(imgOutput, imgOutput, mask=mask)
-
-            # display msg to user
-            if yuv_count == 0:
-                cv2.putText(imgOutput, "1) PUCK", (130, 260), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 78, 0), 2)
-            if yuv_count == 1:
-                cv2.putText(imgOutput, "2) ROBOT", (130, 260), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 78, 0), 2)
-            if yuv_count == 2:
-                cv2.putText(imgOutput, "3) HUMAN", (130, 260), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 78, 0), 2)
-
-            mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
-            cv2.putText(imgOutput, "Move taskbars until only", (130, 288), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 0, 0), 2)
-            cv2.putText(imgOutput, "your object is available", (130, 310), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 0, 0), 2)
-            hstack1 = np.hstack([imgOutput, mask, result])
-            cv2.imshow("Original - Mask - Result", hstack1)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-            done1 = cv2.getTrackbarPos(switch1, "HSV")
+            cv2.destroyAllWindows()
+            break;
 
 
 
             # stage transition
-            if done1 == 1 and HSV_number<6:
-                cv2.destroyWindow("HSV")
-                HSV_number = HSV_number + 1   # set HSV_number = 3
-                yuv_count = yuv_count + 1
-                done1 = 0
+        if done1 == 1 and HSV_number<6:
+            cv2.destroyWindow("HSV")
+            HSV_number = HSV_number + 1   # set HSV_number = 3
+            yuv_count = yuv_count + 1
+            done1 = 0
 
-            # exit condition
-            if done1 == 1 and HSV_number ==6:
-                tmpList = circles.tolist()
-
-                fwriteStr += str(tmpList[0][0]) + "," + str(tmpList[0][1]) + "," +\
-                             str(tmpList[1][0]) + "," + str(tmpList[1][1]) + "," +\
-                             str(tmpList[2][0]) + "," + str(tmpList[2][1]) + "," +\
-                             str(tmpList[3][0]) + "," + str(tmpList[3][1]) + ","
-
-                fwriteStr += str(h_min[0]) + "," + str(h_max[0]) + ","
-                fwriteStr += str(s_min[0]) + "," + str(s_max[0]) + ","
-                fwriteStr += str(v_min[0]) + "," + str(v_max[0]) + ","
-
-                fwriteStr += str(h_min[1]) + "," + str(h_max[1]) + ","
-                fwriteStr += str(s_min[1]) + "," + str(s_max[1]) + "," 
-                fwriteStr += str(v_min[1]) + "," + str(v_max[1]) + ","
-
-                fwriteStr += str(h_min[2]) + "," + str(h_max[2]) + ","
-                fwriteStr += str(s_min[2]) + "," + str(s_max[2]) + "," 
-                fwriteStr += str(v_min[2]) + "," + str(v_max[2])
-
-                fo = open("preset.csv", "w")
-                fo.write(fwriteStr)
-                fo.close()
-				
-                cv2.destroyAllWindows()
-                break;
+        # exit condition
+        if done1 == 1 and HSV_number ==6:
+            cv2.destroyAllWindows()
+            break;
 
 
-        # both below must have same name "og"
-        if stage2 != 1:
-            cv2.imshow("og", img)
-            cv2.setMouseCallback("og", mousePoints)
+    # both below must have same name "og"
+    if stage2 != 1:
+        cv2.imshow("og", img)
+        cv2.setMouseCallback("og", mousePoints)
 
-        cv2.waitKey(1)
-    
-else:   # no calibration - load preset from file
-    print("Loading Preset Calibration...")
-    _, img = cap.read()
+    cv2.waitKey(1)
 
-    fo = open("preset.csv", "r")
-    fread = fo.readline()
-    fo.close()
 
-    freadArr = fread.split(",")
 
-    #load perspective transform values
-    width, height = 640,480
 
-    pts1 = np.float32([[freadArr.pop(0),freadArr.pop(0)],
-                       [freadArr.pop(0), freadArr.pop(0)],
-                       [freadArr.pop(0), freadArr.pop(0)],
-                       [freadArr.pop(0), freadArr.pop(0)]
-                       ])
 
-    pts2 = np.float32([ [0,0], [width,0], [0,height], [width,height] ])
-    matrix = cv2.getPerspectiveTransform(pts1,pts2)
-    imgOutput = cv2.warpPerspective(img, matrix, (width,height))
 
-    #load mask thresholds
-    # for object 1  # puck
-    h_min[0] =int(freadArr.pop(0))
-    h_max[0] = int(freadArr.pop(0))
-    s_min[0] =int(freadArr.pop(0))
-    s_max[0] =int(freadArr.pop(0))
-    v_min[0] = int(freadArr.pop(0))
-    v_max[0] = int(freadArr.pop(0))
-    # for object 2 # robot
-    h_min[1] =int(freadArr.pop(0))
-    h_max[1] =int(freadArr.pop(0))
-    s_min[1] =int(freadArr.pop(0))
-    s_max[1] =int(freadArr.pop(0))
-    v_min[1] =int(freadArr.pop(0))
-    v_max[1] =int(freadArr.pop(0))
-    # for object 3 # human
-    h_min[2] =int(freadArr.pop(0))
-    h_max[2] =int(freadArr.pop(0))
-    s_min[2] =int(freadArr.pop(0))
-    s_max[2] =int(freadArr.pop(0))
-    v_min[2] =int(freadArr.pop(0))
-    v_max[2] =int(freadArr.pop(0))
 
-    if (len(freadArr) > 0): # list should be empty if all values read properly
-        print("Error reading preset from file")
 
 
 #-----------------------------------------------------------------------------------------------------------------------#
@@ -459,10 +414,7 @@ threading.Thread()
 
 cv2.destroyAllWindows()
 
-#ai y point
-aiy= deque([], 10)
 while True:
-    print("MAIN PART")
 
     _, img = cap.read()
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -652,66 +604,6 @@ while True:
         cv2.line(imgOutput, pts33[i - 1], pts33[i], (0, 0, 255), thickness3)
 
 
-
-
-    # AI calculation
-    puckpos = np.array([i for i in pts11 if i])
-    puckpos = puckpos[~np.isnan(puckpos).any(axis=-1)]
-    strikerpos = np.array([i for i in pts22 if i])
-    act_time = 0.1
-    print(aiy)
-    if (puckpos.shape[0] > 2 and len(strikerpos) > 0):
-        avgvel = -1 * np.average(np.diff(puckpos, axis=0), axis=0)
-        speed = np.sum(np.abs(avgvel)) / 2
-        try:
-            desiredX = 76
-            if (speed > 2 and avgvel[0] < -0.2):
-                deltax = (puckpos[-1][0] - strikerpos[-1][0])
-                #if (act_time > deltax / avgvel[0]):
-                # desiredX=110
-                yp2c = -deltax * avgvel[1] / avgvel[0] + puckpos[-1][1]
-                cv2.line(imgOutput, tuple(puckpos[-1][:].astype(int)),
-                         tuple((puckpos[-1][:] + avgvel * 100).astype(int)), (255, 0, 0), 5)
-
-                if (avgvel[1] < 0 and yp2c < 0):
-                    yImp = abs(yp2c)
-                    Xr = int(puckpos[-1][0] - puckpos[-1][1] * avgvel[0] / avgvel[1])
-                    cv2.line(imgOutput, (Xr, 0), (int(strikerpos[-1][0]), int(yImp)), (255, 0, 0), 5)
-                elif (avgvel[1] > 0 and yp2c > 480):
-                    yImp = 2 * 480 - yp2c
-                    Xr = int(puckpos[-1][0] + (480 - puckpos[-1][1]) * avgvel[0] / avgvel[1])
-                    cv2.line(imgOutput, (Xr, 480), (int(strikerpos[-1][0]), int(yImp)), (255, 0, 0), 5)
-                else:
-                    yImp = yp2c
-                    # print("No Bound", avgvel,yp2c, yImp)
-                if np.isnan(yImp) or np.isinf(yImp):
-                    print("Nan or inf")
-                else:
-                    if (yImp < 480 and yImp > 0):
-                        aiy.appendleft(yImp)
-                        aiy_pop_count = 2
-                        if (len(aiy) > 5):
-                            xnorm = np.array(aiy) / 480
-                            xnorm = xnorm[abs(xnorm - np.average(xnorm)) < 0.2]
-                            if np.isnan(np.average(xnorm) * 480) == False:
-                                MoveY = np.average(xnorm) - strikerpos[-1][0] / 480
-                                if MoveY > 0.3:  # table 0-1 range diffrence >30%
-                                    desiredY = (np.average(xnorm) / +strikerpos[-1][0]) / 2
-                            # print("DESIREDY",int(DesiredY))
-                            cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 20, (250, 150, 250), cv2.FILLED)
-                    # cv2.line(imgOutput, (0,int(yImp)), (640,int(yImp)), (0, 255, 0), 5)
-            else:
-                if aiy:
-                    if aiy_pop_count == 0:
-                        aiy.pop()
-                        aiy_pop_count = 2
-                    else:
-                        aiy_pop_count = aiy_pop_count - 1
-        except OverflowError:
-            print("yikes")
-        except ValueError:
-            print("Double Yikes")
-    print(desiredX, desiredY)
 
 # Odrive Motor Control
     print(desiredXY)
