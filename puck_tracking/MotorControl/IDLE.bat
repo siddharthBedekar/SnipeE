@@ -1,0 +1,3 @@
+python idle.py
+
+exit
