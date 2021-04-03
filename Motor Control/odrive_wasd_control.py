@@ -1,5 +1,5 @@
 
-import pygame 
+import pygame
 import sys
 import odrive
 from odrive.enums import *
@@ -9,31 +9,31 @@ import math
 
 
 
-# print("finding an odrive...")
-# my_drive = odrive.find_any()
+print("finding an odrive...")
+my_drive = odrive.find_any()
 
-# if my_drive.axis0.motor.is_calibrated != True:
-#     print("starting calibration for axis 0...")
-#     my_drive.axis0.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
-#     while my_drive.axis0.current_state != AXIS_STATE_IDLE:
-#         time.sleep(0.1)
+if my_drive.axis0.motor.is_calibrated != True:
+    print("starting calibration for axis 0...")
+    my_drive.axis0.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
+    while my_drive.axis0.current_state != AXIS_STATE_IDLE:
+        time.sleep(0.1)
 
-# if my_drive.axis1.motor.is_calibrated != True:
-#     print("starting calibration for axis 1...")
-#     my_drive.axis1.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
-#     while my_drive.axis1.current_state != AXIS_STATE_IDLE:
-#         time.sleep(0.1)
+if my_drive.axis1.motor.is_calibrated != True:
+    print("starting calibration for axis 1...")
+    my_drive.axis1.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
+    while my_drive.axis1.current_state != AXIS_STATE_IDLE:
+        time.sleep(0.1)
 
 
-# my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-# time.sleep(0.1)
-# my_drive.axis0.controller.config.input_mode = INPUT_MODE_POS_FILTER
-# time.sleep(0.1)
+my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+time.sleep(0.1)
+my_drive.axis0.controller.config.input_mode = INPUT_MODE_POS_FILTER
+time.sleep(0.1)
 
-# my_drive.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-# time.sleep(0.1)
-# my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
-# time.sleep(0.1)
+my_drive.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+time.sleep(0.1)
+my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
+time.sleep(0.1)
  
 pygame.init() 
   
@@ -61,8 +61,8 @@ font = pygame.font.Font('freesansbold.ttf', 16)
 
 
 #Safe Operation region
-xlim = 50
-ylim = 25
+xlim = 55
+ylim = 27
 
 #stopping consitions
 x_stop = res_x/2-(xlim/2)
@@ -124,12 +124,12 @@ while run:
 
     #---------------Odrive Commands-------------
 
-    # del_x = x - x_old
-    # del_y = y - y_old
+    del_x = x - x_old
+    del_y = y - y_old
 
-    # print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
-    # my_drive.axis1.controller.input_pos = -(del_x + del_y)
-    # my_drive.axis0.controller.input_pos = -(del_x - del_y) 
+    print("Delta X:"+str(x)+" Delta Y:"+str(y))
+    my_drive.axis1.controller.input_pos = -(del_x + del_y)
+    my_drive.axis0.controller.input_pos = -(del_x - del_y)
 
 
   

@@ -3,7 +3,6 @@ import numpy as np
 import imutils
 from collections import deque
 
-
 #Server imports
 import threading
 from flask import Flask, render_template
@@ -28,10 +27,9 @@ pingT = 0
 pinged = False
 
 #read data globals
-desiredX = 0
-desiredY = 0
+desiredX=123
+desiredY=237
 
-desiredXY = np.array([0,0])
 
 #Tracking Center vals
 #Puck
@@ -46,6 +44,9 @@ y3 = 0
 
 #loadOdrive
 loadO = True
+o_limit_x=11.5
+o_limit_y=6.5
+o_error=[0,0]
 
 #calibration flag
 CALIBRATING = False
@@ -74,16 +75,9 @@ def getLatency(data):
 def rxDesiredCoords(data):
     global desiredY
     global desiredX
-    global desiredXY
     temp = data.split(',')
     desiredX = float(temp[0])
     desiredY = float(temp[1])
-    if (len(desiredXY)<5):
-        desiredXY=np.vstack((desiredXY,[desiredX,desiredY]))
-    else:
-        desiredXY=np.vstack((desiredXY[1:][:],[desiredX,desiredY]))
-    print("DesiredX= ", desiredX)
-    print("DesiredY= ", desiredY)
 
 
 #functions for server
@@ -136,7 +130,7 @@ def runMotorControl():
         del_b = (del_x - del_y)
         print(del_a,del_b)
         if (del_a - del_b < 6.5) and (del_a + del_b < 11.5) and (del_a + del_b > -11.5) and (del_a - del_b > -6.5):
-           print("OK")
+           print()
             #print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
             #print("Delta A:" + str(del_a) + " Delta B:" + str(del_b))
             #my_drive.axis1.controller.input_pos = del_a
@@ -174,7 +168,7 @@ yuv_count = 0    # index for h_min[ [], [], [] ]
 
 switch1 = 'Good? \n->1'
 
-argsBuffer = 64  # for args["buffer"] we copied from old code
+argsBuffer = 8  # for args["buffer"] we copied from old code
 
 HSV_number = 1   # counter for HSV window function
 
@@ -460,19 +454,16 @@ threading.Thread()
 cv2.destroyAllWindows()
 
 #ai y point
+pts11 = deque([], argsBuffer)
+pts22 = deque([], argsBuffer)
+pts33 = deque([], argsBuffer)
 aiy= deque([], 10)
 while True:
-    print("MAIN PART")
 
     _, img = cap.read()
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-
-
-    pts11 = deque([], argsBuffer)
-    pts22 = deque([], argsBuffer)
-    pts33 = deque([], argsBuffer)
 
     width, height = 640, 480
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
@@ -484,8 +475,6 @@ while True:
 
 
 
-    #draw required position
-    cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 3, (50, 50, 250), cv2.FILLED)
 
 
     if counter22 < 2:
@@ -506,7 +495,7 @@ while True:
 
 
     # draw BOUND
-    # cv2.rectangle(imgOutput, (65, 25), (142 + 65, 25 + 435), (0, 0, 255), 1)
+     #cv2.rectangle(imgOutput, (65, 25), (142 + 65, 25 + 435), (0, 0, 255), 1)
 
 
     # Track Object 1 (PUCK)-------------------------------------------------------------------
@@ -530,7 +519,6 @@ while True:
         center1 = (int(M1["m10"] / M1["m00"]), int(M1["m01"] / M1["m00"]))
 
         msg1 = str(x1) + "," + str(y1)
-        #print("puck= ", msg1)
         socketio.emit('updatePuck', msg1)
 
         # only proceed if the radius meets a minimum size
@@ -580,7 +568,6 @@ while True:
         center2 = (int(M2["m10"] / M2["m00"]), int(M2["m01"] / M2["m00"]))
         # print("STARTING X:" + str(x2) + "Y:" + str(y2))
         msg2 = str(x2) + "," + str(y2)
-        print("Robot= ", msg2)
         socketio.emit('updateRobot', msg2)
 
         # only proceed if the radius meets a minimum size
@@ -631,7 +618,6 @@ while True:
         center3 = (int(M3["m10"] / M3["m00"]), int(M3["m01"] / M3["m00"]))
 
         msg3 = str(x3) + "," + str(y3)
-        #print("3= ", msg3)
         socketio.emit('updateHuman', msg3)
 
         # only proceed if the radius meets a minimum size
@@ -659,44 +645,45 @@ while True:
     puckpos = puckpos[~np.isnan(puckpos).any(axis=-1)]
     strikerpos = np.array([i for i in pts22 if i])
     act_time = 0.1
-    print(aiy)
     if (puckpos.shape[0] > 2 and len(strikerpos) > 0):
         avgvel = -1 * np.average(np.diff(puckpos, axis=0), axis=0)
         speed = np.sum(np.abs(avgvel)) / 2
         try:
-            desiredX = 76
+            #desiredX = 110
             if (speed > 2 and avgvel[0] < -0.2):
-                deltax = (puckpos[-1][0] - strikerpos[-1][0])
+                deltax = (puckpos[0][0] - strikerpos[0][0])
                 #if (act_time > deltax / avgvel[0]):
                 # desiredX=110
-                yp2c = -deltax * avgvel[1] / avgvel[0] + puckpos[-1][1]
-                cv2.line(imgOutput, tuple(puckpos[-1][:].astype(int)),
-                         tuple((puckpos[-1][:] + avgvel * 100).astype(int)), (255, 0, 0), 5)
-
+                yp2c = -deltax * avgvel[1] / avgvel[0] + puckpos[0][1]
+                cv2.line(imgOutput, tuple(puckpos[0][:].astype(int)),
+                         tuple((puckpos[0][:] + avgvel * 100).astype(int)), (255, 0, 0), 5)
                 if (avgvel[1] < 0 and yp2c < 0):
                     yImp = abs(yp2c)
-                    Xr = int(puckpos[-1][0] - puckpos[-1][1] * avgvel[0] / avgvel[1])
-                    cv2.line(imgOutput, (Xr, 0), (int(strikerpos[-1][0]), int(yImp)), (255, 0, 0), 5)
+                    Xr = int(puckpos[0][0] - puckpos[0][1] * avgvel[0] / avgvel[1])
+                    cv2.line(imgOutput, (Xr, 0), (int(strikerpos[0][0]), int(yImp)), (255, 0, 0), 5)
                 elif (avgvel[1] > 0 and yp2c > 480):
                     yImp = 2 * 480 - yp2c
-                    Xr = int(puckpos[-1][0] + (480 - puckpos[-1][1]) * avgvel[0] / avgvel[1])
-                    cv2.line(imgOutput, (Xr, 480), (int(strikerpos[-1][0]), int(yImp)), (255, 0, 0), 5)
+                    Xr = int(puckpos[0][0] + (480 - puckpos[0][1]) * avgvel[0] / avgvel[1])
+                    cv2.line(imgOutput, (Xr, 480), (int(strikerpos[0][0]), int(yImp)), (255, 0, 0), 5)
                 else:
                     yImp = yp2c
                     # print("No Bound", avgvel,yp2c, yImp)
                 if np.isnan(yImp) or np.isinf(yImp):
                     print("Nan or inf")
                 else:
+                    #print(yImp)
                     if (yImp < 480 and yImp > 0):
                         aiy.appendleft(yImp)
                         aiy_pop_count = 2
                         if (len(aiy) > 5):
                             xnorm = np.array(aiy) / 480
+                            print(xnorm)
                             xnorm = xnorm[abs(xnorm - np.average(xnorm)) < 0.2]
-                            if np.isnan(np.average(xnorm) * 480) == False:
-                                MoveY = np.average(xnorm) - strikerpos[-1][0] / 480
-                                if MoveY > 0.3:  # table 0-1 range diffrence >30%
-                                    desiredY = (np.average(xnorm) / +strikerpos[-1][0]) / 2
+                            if len(xnorm)>0 and np.isnan(np.average(xnorm) * 480) == False:
+                                #if abs(MoveY-np.average(xnorm)>0.2):
+                                desiredY = np.average(xnorm)*480 - strikerpos[0][1] #vector from striker to yImp
+                                print("small")
+                                #desiredY = (MoveY*480 +strikerpos[-1][1])
                             # print("DESIREDY",int(DesiredY))
                             cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 20, (250, 150, 250), cv2.FILLED)
                     # cv2.line(imgOutput, (0,int(yImp)), (640,int(yImp)), (0, 255, 0), 5)
@@ -711,24 +698,55 @@ while True:
             print("yikes")
         except ValueError:
             print("Double Yikes")
-    print(desiredX, desiredY)
+    #print(desiredX, desiredY)
 
 # Odrive Motor Control
-    print(desiredXY)
-    del_x = int(desiredY) - 1
-    del_x = -(del_x * (11.5 / 398) - 5.75)
-    del_y = int(desiredX) - 65
-    del_y = del_y * (6.5 / 142) - 3.25  # FLIPPED? OK?
+    print(desiredX,desiredY)
+    v_pixel_limit=80
+    if (abs(desiredY-strikerpos[0][1])<v_pixel_limit):  #in range of the stiker
+        del_x = int(desiredY) - 25
+        del_x = -(del_x * (11.5 / 424) - 5.75)
+    else:   # out of range interpolate using v_pixel_limit
+        del_x = int(np.sign(desiredY-strikerpos[0][1])*v_pixel_limit+strikerpos[0][1]) - 25
+        del_x = -(del_x * (11.5 / 424) - 5.75)
+    if (abs(desiredX - strikerpos[0][0]) < v_pixel_limit):  # in range of the stiker
+        del_y = int(desiredX) - 65
+        del_y = del_y * (6.5 / 116) - 3.25  # FLIPPED? OK?
+    else:
+        del_y = int(np.sign(desiredX-strikerpos[0][0])*v_pixel_limit+strikerpos[0][0]) - 65
+        del_y = del_y * (6.5 / 116) - 3.25  # FLIPPED? OK?
+
+    cv2.rectangle(imgOutput, (65, 25), (116 + 65, 25 + 424), (0, 0, 255), 1)
+
+    # draw required position
+    cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 3, (250, 250, 250), cv2.FILLED)
+
+
+    #errorCorrection
+    #stiker_vel=np.nanmean(strikerpos, axis=0)
+    #if np.mean(stiker_vel)<3 and np.nanmean(strikerpos,axis=0):
+        #check error
+
+
+    # #if desiredX
+    # del_x = int(desiredY) - 25
+    # del_x = -(del_x * (o_limit_x/ 424) - 5.75)
+    # del_y = int(desiredX) - 65
+    # del_y = del_y * (o_limit_y / 116) - 3.25  # FLIPPED? OK?
+
     del_a = (del_x + del_y)
     del_b = (del_x - del_y)
+
+
     if (loadO):  # only run if loadO = True
-        print("motor vals:", del_a, del_b)
-        if (del_a - del_b < 6.5) and (del_a + del_b < 11.5) and (del_a + del_b > -11.5) and (del_a - del_b > -6.5):
-            print("OK")
+        #print("motor vals:", del_a, del_b)
+        if (del_a - del_b < o_limit_y) and (del_a + del_b < o_limit_x) and (del_a + del_b > -o_limit_x) and (del_a - del_b > -o_limit_y):
             # print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
             # print("Delta A:" + str(del_a) + " Delta B:" + str(del_b))
             my_drive.axis1.controller.input_pos = del_a
             my_drive.axis0.controller.input_pos = del_b
+        else:
+            print("error")
 
 
 
