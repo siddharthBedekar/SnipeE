@@ -42,6 +42,9 @@ y2 = 0
 x3 = 0
 y3 = 0
 
+first_run=True
+
+
 #Input Bound
 rect_bound=[[65, 25],[142 + 65, 25 + 435]]
 
@@ -54,6 +57,7 @@ ai=False
 
 #loadOdrive
 loadO = True
+o_limit_lower=[]
 o_limit_x=11.5
 o_limit_y=6.5
 o_error=[0,0]
@@ -249,8 +253,8 @@ def create_Odrive_map(spos,opos):
     global o_limit_y
     px=spos[0]-rect_bound[0][0]#distx from top left of bound
     py=spos[1]-rect_bound[0][1]#disty from top left of bound
-    err_x=px-opos[0]
-    err_y=py-opos[1]#table cord converted to odrive cart
+    err_x=opos[0]-px
+    err_y=opos[1]-py#table cord converted to odrive cart
     error_y=err_x* (o_limit_y / rect_bound[1][0]-rect_bound[0][0])
     error_x=err_y*(o_limit_x / rect_bound[1][1]-rect_bound[0][1])
     return([error_x,error_y])
@@ -674,7 +678,7 @@ while True:
             speed = np.sum(np.abs(avgvel)) / 2
             try:
                 #desiredX = 110
-                if (speed > 2 and avgvel[0] < -0.2):
+                if (speed > 2 and avgvel[0] < -3):#moving left
                     deltax = (puckpos[0][0] - strikerpos[0][0])
                     #if (act_time > deltax / avgvel[0]):
                     # desiredX=110
@@ -726,6 +730,7 @@ while True:
 
 # Odrive Motor Control
     print(desiredX,desiredY)
+    
 # =========================The interpolation of movement============================
 #     v_pixel_limit=80
         
@@ -733,12 +738,21 @@ while True:
 #     if (abs(desiredY-strikerpos[0][1])<v_pixel_limit):  #in range of the stiker
 #         del_x = int(desiredY) - 25
 #         del_x = -(del_x * (11.5 / 424) - 5.75)
+
+
+
 #     else:   # out of range interpolate using v_pixel_limit
 #         del_x = int(np.sign(desiredY-strikerpos[0][1])*v_pixel_limit+strikerpos[0][1]) - 25
 #         del_x = -(del_x * (11.5 / 424) - 5.75)
+
+
+
 #     if (abs(desiredX - strikerpos[0][0]) < v_pixel_limit):  # in range of the stiker
 #         del_y = int(desiredX) - 65
 #         del_y = del_y * (6.5 / 116) - 3.25  # FLIPPED? OK?
+
+
+
 #     else:
 #         del_y = int(np.sign(desiredX-strikerpos[0][0])*v_pixel_limit+strikerpos[0][0]) - 65
 #         del_y = del_y * (6.5 / 116) - 3.25  # FLIPPED? OK?
@@ -761,19 +775,35 @@ while True:
 
 
     #Use rect_bound
-    cv2.rectangle(imgOutput, (65, 25), (116 + 65, 25 + 424), (0, 0, 255), 1)
+    cv2.rectangle(imgOutput, tuple(rect_bound[0]), tuple(rect_bound[1]), (0, 0, 255), 1)
 
     # draw required position
     cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 3, (250, 250, 250), cv2.FILLED)
 
 
+    if (first_run): #or np.mean(stiker_vel)<1 and np.nanmean(strikerpos,axis=0)): addd on error if uncommented
+        
+        del_x = int(desiredY) - rect_bound[0][1]
+        #lenght of rect bound 
+        del_x = -(del_x * (o_limit_x/ rect_bound[1][1]-rect_bound[0][1]) - 5.75)
+        del_y = int(desiredX) - rect_bound[0][0]
+        del_y = del_y * (o_limit_y / rect_bound[1][0]-rect_bound[0][0]) - 3.25  # FLIPPED? OK?
+        print("correction")
+        first_run=False
+        error=create_Odrive_map([strikerpos[0][0],strikerpos[0][1]],[del_x,del_y])
+        
+        
+
+    
+
+    
 
 
     del_x = int(desiredY) - rect_bound[0][1]
     #lenght of rect bound 
-    del_x = -(del_x * (o_limit_x/ rect_bound[1][1]-rect_bound[0][1]) - 5.75)
+    del_x = -(del_x * (o_limit_x/ rect_bound[1][1]-rect_bound[0][1]) - 5.75+ error[0])
     del_y = int(desiredX) - rect_bound[0][0]
-    del_y = del_y * (o_limit_y / rect_bound[1][0]-rect_bound[0][0]) - 3.25  # FLIPPED? OK?
+    del_y = del_y * (o_limit_y / rect_bound[1][0]-rect_bound[0][0]) - 3.25+ error[1]  # FLIPPED? OK?
     
     
      #errorCorrection
