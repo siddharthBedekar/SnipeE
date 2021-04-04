@@ -10,31 +10,35 @@ import math
 
 
 # print("finding an odrive...")
-# my_drive = odrive.find_any()
+my_drive = odrive.find_any()
 
-# if my_drive.axis0.motor.is_calibrated != True:
-#     print("starting calibration for axis 0...")
-#     my_drive.axis0.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
-#     while my_drive.axis0.current_state != AXIS_STATE_IDLE:
-#         time.sleep(0.1)
+if my_drive.axis0.motor.is_calibrated != True:
+    print("starting calibration for axis 0...")
+    my_drive.axis0.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
+    while my_drive.axis0.current_state != AXIS_STATE_IDLE:
+        time.sleep(0.1)
 
-# if my_drive.axis1.motor.is_calibrated != True:
-#     print("starting calibration for axis 1...")
-#     my_drive.axis1.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
-#     while my_drive.axis1.current_state != AXIS_STATE_IDLE:
-#         time.sleep(0.1)
+if my_drive.axis1.motor.is_calibrated != True:
+    print("starting calibration for axis 1...")
+    my_drive.axis1.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
+    while my_drive.axis1.current_state != AXIS_STATE_IDLE:
+        time.sleep(0.1)
 
 
-# my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-# time.sleep(0.1)
+my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+time.sleep(0.1)
+my_drive.axis0.controller.config.input_mode = INPUT_MODE_TRAP_TRAJ
+time.sleep(0.1)
 # my_drive.axis0.controller.config.input_mode = INPUT_MODE_POS_FILTER
 # time.sleep(0.1)
 
-# my_drive.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-# time.sleep(0.1)
+my_drive.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+time.sleep(0.1)
 # my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
 # time.sleep(0.1)
- 
+my_drive.axis1.controller.config.input_mode = INPUT_MODE_TRAP_TRAJ
+time.sleep(0.1)
+#
 pygame.init() 
   
 res_x = 400
@@ -124,12 +128,12 @@ while run:
 
     #---------------Odrive Commands-------------
 
-    # del_x = x - x_old
-    # del_y = y - y_old
+    del_x = x - x_old
+    del_y = y - y_old
 
-    # print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
-    # my_drive.axis1.controller.input_pos = -(del_x + del_y)
-    # my_drive.axis0.controller.input_pos = -(del_x - del_y) 
+    print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
+    my_drive.axis1.controller.input_pos = -(del_x + del_y)
+    my_drive.axis0.controller.input_pos = -(del_x - del_y)
 
 
   

@@ -54,7 +54,7 @@ desiredY= rect_bound[0][1]+(rect_bound[1][1]-rect_bound[0][1])/2
 
 #modes highest priority first
 wasd=False
-ai=False
+ai=True
 
 
 #loadOdrive
@@ -109,48 +109,48 @@ def runServer():
     socketio.run(app, host='0.0.0.0')
 
 # MOTOR CONTROL --------------------------------------------------------------------------------------------------------
-def runMotorControl():
-
-    print("finding an odrive...")
-    my_drive = odrive.find_any()
-
-    if my_drive.axis0.motor.is_calibrated != True:
-        print("starting calibration for axis 0...")
-        my_drive.axis0.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
-        while my_drive.axis0.current_state != AXIS_STATE_IDLE:
-            time.sleep(0.1)
-
-    if my_drive.axis1.motor.is_calibrated != True:
-        print("starting calibration for axis 1...")
-        my_drive.axis1.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
-        while my_drive.axis1.current_state != AXIS_STATE_IDLE:
-            time.sleep(0.1)
-
-    # PID closed loop control
-    my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-    time.sleep(0.1)
-    my_drive.axis0.controller.config.input_mode = INPUT_MODE_POS_FILTER
-    time.sleep(0.1)
-
-    my_drive.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
-    time.sleep(0.1)
-    my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
-    time.sleep(0.1)
-
-    while True:
-        del_x = int(desiredY) - 0.8888889
-        del_x = del_x*(11.5/896.52)-5.75
-        del_y = int(desiredX) - 65.39738
-        del_y = del_y*(6.5/506.73)-3.25  #FLIPPED? OK?
-        del_a = (del_x + del_y)
-        del_b = (del_x - del_y)
-        print(del_a,del_b)
-        if (del_a - del_b < 6.5) and (del_a + del_b < 11.5) and (del_a + del_b > -11.5) and (del_a - del_b > -6.5):
-           print()
-            #print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
-            #print("Delta A:" + str(del_a) + " Delta B:" + str(del_b))
-            #my_drive.axis1.controller.input_pos = del_a
-            #my_drive.axis0.controller.input_pos = del_b
+# def runMotorControl():
+#
+#     print("finding an odrive...")
+#     my_drive = odrive.find_any()
+#
+#     if my_drive.axis0.motor.is_calibrated != True:
+#         print("starting calibration for axis 0...")
+#         my_drive.axis0.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
+#         while my_drive.axis0.current_state != AXIS_STATE_IDLE:
+#             time.sleep(0.1)
+#
+#     if my_drive.axis1.motor.is_calibrated != True:
+#         print("starting calibration for axis 1...")
+#         my_drive.axis1.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
+#         while my_drive.axis1.current_state != AXIS_STATE_IDLE:
+#             time.sleep(0.1)
+#
+#     # PID closed loop control
+#     my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+#     time.sleep(0.1)
+#     my_drive.axis0.controller.config.input_mode = INPUT_MODE_POS_FILTER
+#     time.sleep(0.1)
+#
+#     my_drive.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+#     time.sleep(0.1)
+#     my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
+#     time.sleep(0.1)
+#
+#     while True:
+#         del_x = int(desiredY) - 0.8888889
+#         del_x = del_x*(11.5/896.52)-5.75
+#         del_y = int(desiredX) - 65.39738
+#         del_y = del_y*(6.5/506.73)-3.25  #FLIPPED? OK?
+#         del_a = (del_x + del_y)
+#         del_b = (del_x - del_y)
+#         print(del_a,del_b)
+#         if (del_a - del_b < 6.5) and (del_a + del_b < 11.5) and (del_a + del_b > -11.5) and (del_a - del_b > -6.5):
+#            print()
+#             #print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
+#             #print("Delta A:" + str(del_a) + " Delta B:" + str(del_b))
+#             #my_drive.axis1.controller.input_pos = del_a
+#             #my_drive.axis0.controller.input_pos = del_b
 
 # for live video
 frameWidth = 640
@@ -285,12 +285,12 @@ if (loadO):
     # PID closed loop control
     my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
     time.sleep(0.1)
-    my_drive.axis0.controller.config.input_mode = INPUT_MODE_POS_FILTER
+    my_drive.axis0.controller.config.input_mode = INPUT_MODE_TRAP_TRAJ #INPUT_MODE_POS_FILTER
     time.sleep(0.1)
 
     my_drive.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
     time.sleep(0.1)
-    my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
+    my_drive.axis1.controller.config.input_mode = INPUT_MODE_TRAP_TRAJ #INPUT_MODE_POS_FILTER
     time.sleep(0.1)
 
 if CALIBRATING:
@@ -674,29 +674,34 @@ while True:
     puckpos = puckpos[~np.isnan(puckpos).any(axis=-1)]
     strikerpos = np.array([i for i in pts22 if i])
     if (ai):
-        act_time = 0.1
+        act_time = 14
+        if(first_run == False):
+            desiredX = 80
+        encount_pt=160
         if (puckpos.shape[0] > 2 and len(strikerpos) > 0):
             avgvel = -1 * np.average(np.diff(puckpos, axis=0), axis=0)
             speed = np.sum(np.abs(avgvel)) / 2
+
             try:
-                #desiredX = 110
-                if (speed > 2 and avgvel[0] < -3):#moving left
-                    deltax = (puckpos[0][0] - strikerpos[0][0])
-                    #if (act_time > deltax / avgvel[0]):
-                    # desiredX=110
+                if (speed > 2 and avgvel[0] < -2):#moving left
+                    # if abs(avgvel[1]) <2 and((act_time > abs(deltax / avgvel[0]) or puckpos[0][0] < rect_bound[1][0])):
+                    #     desiredX = 110
+                    #     print("Attack")
+                    deltax = (puckpos[0][0] - encount_pt)
                     yp2c = -deltax * avgvel[1] / avgvel[0] + puckpos[0][1]
                     cv2.line(imgOutput, tuple(puckpos[0][:].astype(int)),
                              tuple((puckpos[0][:] + avgvel * 100).astype(int)), (255, 0, 0), 5)
-                    if (avgvel[1] < 0 and yp2c < 0):
+                    if (avgvel[1] < 0 and yp2c < 0):#top
                         yImp = abs(yp2c)
                         Xr = int(puckpos[0][0] - puckpos[0][1] * avgvel[0] / avgvel[1])
-                        cv2.line(imgOutput, (Xr, 0), (int(strikerpos[0][0]), int(yImp)), (255, 0, 0), 5)
-                    elif (avgvel[1] > 0 and yp2c > 480):
+                        cv2.line(imgOutput, (Xr, 0), (int(encount_pt), int(yImp)), (255, 0, 0), 5)
+                    elif (avgvel[1] > 0 and yp2c > 480):#botte,
                         yImp = 2 * 480 - yp2c
                         Xr = int(puckpos[0][0] + (480 - puckpos[0][1]) * avgvel[0] / avgvel[1])
-                        cv2.line(imgOutput, (Xr, 480), (int(strikerpos[0][0]), int(yImp)), (255, 0, 0), 5)
-                    else:
+                        cv2.line(imgOutput, (Xr, 480), (int(encount_pt), int(yImp)), (255, 0, 0), 5)
+                    else:# straight
                         yImp = yp2c
+
                         # print("No Bound", avgvel,yp2c, yImp)
                     if np.isnan(yImp) or np.isinf(yImp):
                         print("Nan or inf")
@@ -705,19 +710,22 @@ while True:
                         if (yImp < 480 and yImp > 0):
                             aiy.appendleft(yImp)
                             aiy_pop_count = 2
-                            if (len(aiy) > 5):
+                            if (len(aiy) > 3):
                                 xnorm = np.array(aiy) / 480
-                                print(xnorm)
+                                #print(xnorm)
                                 xnorm = xnorm[abs(xnorm - np.average(xnorm)) < 0.2]
                                 if len(xnorm)>0 and np.isnan(np.average(xnorm) * 480) == False:
-                                    #if abs(MoveY-np.average(xnorm)>0.2):
-                                    desiredY = np.average(xnorm)*480  #vector from striker to yImp
-                                    print("small")
-                                    #desiredY = (MoveY*480 +strikerpos[-1][1])
-                                # print("DESIREDY",int(DesiredY))
+                                    temp_y= np.average(xnorm) * 480
+                                    if temp_y<rect_bound[0][1]:
+                                        desiredY=rect_bound[0][1]+2
+                                        desiredX = encount_pt
+                                    else:
+                                        desiredY = np.average(xnorm)*480  #vector from striker to yImp
+                                        desiredX=encount_pt
                                 cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 20, (250, 150, 250), cv2.FILLED)
-                        # cv2.line(imgOutput, (0,int(yImp)), (640,int(yImp)), (0, 255, 0), 5)
                 else:
+                    if (avgvel[0] >-0.1 and puckpos[0][0] > rect_bound[1][0]):# return to default position
+                        desiredY=(rect_bound[1][1]-rect_bound[0][1])/2+rect_bound[0][1]#center the striker
                     if aiy:
                         if aiy_pop_count == 0:
                             aiy.pop()
@@ -739,8 +747,8 @@ while True:
 
     #Use rect_bound
     cv2.rectangle(imgOutput, tuple(rect_bound[0]), tuple(rect_bound[1]), (0, 0, 255), 1)
-
-    # draw required position
+    #
+    # # draw required position
     cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 3, (250, 250, 250), cv2.FILLED)
     #
     #
@@ -751,12 +759,12 @@ while True:
         del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1])) - 5.75)
         del_y = int(desiredX) - rect_bound[0][0]
         del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25  # FLIPPED? OK?
-        print("correction")
+        #print("correction")
         first_run=False
         temp_e=create_Odrive_map([strikerpos[0][0],strikerpos[0][1]],[del_x,del_y])
         for i in range(2):
             o_error[i]=o_error[i]+ temp_e[i]
-        print(o_error,strikerpos,del_x,del_y)
+        #print(o_error,strikerpos,del_x,del_y)
 
     #
     # WASD TESTING
@@ -773,38 +781,41 @@ while True:
     #
     # =============================================================================
 
-    # del_x = -(del_x * (11.5/ (412)(150)) - 5.75)
-    #         del_y = int(desiredX) - rect_bound[0][0]
-    #         del_y = del_y * (6.5 / (150)) - 3.25  # FLIPPED? OK?
+    print(desiredX,desiredY)
+    del_x = int(desiredY) - rect_bound[0][1]
+    #lenght of rect bound
+    del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))- 5.75)+o_error[0]
+    del_y = int(desiredX) - rect_bound[0][0]
+    del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25+ o_error[1]  # FLIPPED? OK?
+    #
+    #
+    # v_pixel_limit=100000
+    #
+    # if (abs(desiredY-strikerpos[0][1])<v_pixel_limit):  #in range of the stiker
+    #     del_x = int(desiredY) - rect_bound[0][1]
+    #     # lenght of rect bound
+    #     del_x = -(del_x * (o_limit_x / (rect_bound[1][1] - rect_bound[0][1])) - 5.75) + o_error[0]
+    #
+    # else:   # out of range interpolate using v_pixel_limit
+    #     del_x = int(np.sign(desiredY-strikerpos[0][1])*v_pixel_limit+strikerpos[0][1]) - 25
+    #     del_x = -(del_x * (o_limit_x / (rect_bound[1][1] - rect_bound[0][1])) - 5.75) + o_error[0]
+    #
+    # if (abs(desiredX - strikerpos[0][0]) < v_pixel_limit):  # in range of the stiker
+    #     del_y = int(desiredX) - rect_bound[0][0]
+    #     del_y = del_y * (o_limit_y / (rect_bound[1][0] - rect_bound[0][0])) - 3.25 + o_error[1]  # FLIPPED? OK?
+    #
+    # else:
+    #     del_y = int(np.sign(desiredX-strikerpos[0][0])*v_pixel_limit+strikerpos[0][0]) - rect_bound[0][0]
+    #     del_y = del_y * (o_limit_y / (rect_bound[1][0] - rect_bound[0][0])) - 3.25 + o_error[1]  # FLIPPED? OK?
 
-    # del_x = int(desiredY) - rect_bound[0][1]
-    # #lenght of rect bound
-    # del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))- 5.75)+o_error[0]
-    # del_y = int(desiredX) - rect_bound[0][0]
-    # del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25+ o_error[1]  # FLIPPED? OK?
-
-
-    v_pixel_limit=100
-
-    if (abs(desiredY-strikerpos[0][1])<v_pixel_limit):  #in range of the stiker
-        del_x = int(desiredY) - rect_bound[0][1]
-        # lenght of rect bound
-        del_x = -(del_x * (o_limit_x / (rect_bound[1][1] - rect_bound[0][1])) - 5.75) + o_error[0]
-
-    else:   # out of range interpolate using v_pixel_limit
-        del_x = int(np.sign(desiredY-strikerpos[0][1])*v_pixel_limit+strikerpos[0][1]) - 25
-        del_x = -(del_x * (o_limit_x / (rect_bound[1][1] - rect_bound[0][1])) - 5.75) + o_error[0]
-
-    if (abs(desiredX - strikerpos[0][0]) < v_pixel_limit):  # in range of the stiker
-        del_y = int(desiredX) - rect_bound[0][0]
-        del_y = del_y * (o_limit_y / (rect_bound[1][0] - rect_bound[0][0])) - 3.25 + o_error[1]  # FLIPPED? OK?
-
-    else:
-        del_y = int(np.sign(desiredX-strikerpos[0][0])*v_pixel_limit+strikerpos[0][0]) - rect_bound[0][0]
-        del_y = del_y * (o_limit_y / (rect_bound[1][0] - rect_bound[0][0])) - 3.25 + o_error[1]  # FLIPPED? OK?
-
-    
-    
+    #print(desiredXY)
+    # del_x = int(desiredY) - 1
+    # del_x = -(del_x * (11.5 / 398) - 5.75)
+    # del_y = int(desiredX) - 65
+    # del_y = del_y * (6.5 / 142) - 3.25  # FLIPPED? OK?
+    # del_a = (del_x + del_y)
+    # del_b = (del_x - del_y)
+    #
     del_a = (del_x + del_y)
     del_b = (del_x - del_y)
 
@@ -818,7 +829,7 @@ while True:
 
             my_drive.axis1.controller.input_pos = del_a
             my_drive.axis0.controller.input_pos = del_b
-            print(del_x, del_y)
+            #print(del_x, del_y)
         else:
             print(del_x,del_y)
             print("error")
