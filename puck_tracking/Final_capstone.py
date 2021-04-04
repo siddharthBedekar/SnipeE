@@ -683,7 +683,7 @@ while True:
             speed = np.sum(np.abs(avgvel)) / 2
 
             try:
-                if (speed > 2 and avgvel[0] < -2):#moving left
+                if (speed > 2 and avgvel[0] < -1.5):#moving left
                     # if abs(avgvel[1]) <2 and((act_time > abs(deltax / avgvel[0]) or puckpos[0][0] < rect_bound[1][0])):
                     #     desiredX = 110
                     #     print("Attack")
@@ -710,7 +710,7 @@ while True:
                         if (yImp < 480 and yImp > 0):
                             aiy.appendleft(yImp)
                             aiy_pop_count = 2
-                            if (len(aiy) > 3):
+                            if (len(aiy) > 2):
                                 xnorm = np.array(aiy) / 480
                                 #print(xnorm)
                                 xnorm = xnorm[abs(xnorm - np.average(xnorm)) < 0.2]
@@ -724,8 +724,15 @@ while True:
                                         desiredX=encount_pt
                                 cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 20, (250, 150, 250), cv2.FILLED)
                 else:
-                    if (avgvel[0] >-0.1 and puckpos[0][0] > rect_bound[1][0]):# return to default position
+                    if (avgvel[0] >-0.1 and (puckpos[0][0] > rect_bound[1][0]) or (puckpos[0][0] < rect_bound[0][0]) ):# return to default position
                         desiredY=(rect_bound[1][1]-rect_bound[0][1])/2+rect_bound[0][1]#center the striker
+                    if ((puckpos[0][0] > rect_bound[0][0]) and (puckpos[0][0] < rect_bound[1][0])):# inside the striking area
+                        if abs(puckpos[0][1]- strikerpos[0][1])>4:
+                            desiredY= puckpos[0][1]
+                        elif strikerpos[0][0]>rect_bound[0][0]+20:# it is infront of the
+                            desiredX= rect_bound[0][0]+10
+                        else:
+                            desiredX=strikerpos[0][0]+20
                     if aiy:
                         if aiy_pop_count == 0:
                             aiy.pop()
@@ -782,6 +789,16 @@ while True:
     # =============================================================================
 
     print(desiredX,desiredY)
+    if desiredY<rect_bound[0][1]:
+        desiredY=rect_bound[0][1]+8
+    elif (desiredY>rect_bound[1][1]):
+        desiredY = desiredY = rect_bound[0][1] -8
+    if desiredX<rect_bound[0][0]:
+        desiredX=rect_bound[0][0]+8
+    elif (desiredX>rect_bound[1][0]):
+        desiredX = rect_bound[0][0] -8
+
+
     del_x = int(desiredY) - rect_bound[0][1]
     #lenght of rect bound
     del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))- 5.75)+o_error[0]
