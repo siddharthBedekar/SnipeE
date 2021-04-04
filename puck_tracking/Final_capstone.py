@@ -53,7 +53,7 @@ desiredY= rect_bound[0][1]+(rect_bound[1][1]-rect_bound[0][1])/2
 #(imgOutput, (65, 25), (142 + 65, 25 + 435), (0, 0, 255), 1)
 
 #modes highest priority first
-wasd=True
+wasd=False
 ai=False
 
 
@@ -247,7 +247,7 @@ def make_HSV_window():
     # add exit condition
     switch1 = 'Good? \n->1'
     cv2.createTrackbar(switch1, "HSV", 0, 1, empty)
-# del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1])) - 5.75)
+# del_x = -(del_x * (11.6/ (rect_bound[1][1]-rect_bound[0][1])) - 5.75)
 #         del_y = int(desiredX) - rect_bound[0][0]
 #         del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25  # FLIPPED? OK?
 
@@ -711,7 +711,7 @@ while True:
                                 xnorm = xnorm[abs(xnorm - np.average(xnorm)) < 0.2]
                                 if len(xnorm)>0 and np.isnan(np.average(xnorm) * 480) == False:
                                     #if abs(MoveY-np.average(xnorm)>0.2):
-                                    desiredY = np.average(xnorm)*480 - strikerpos[0][1] #vector from striker to yImp
+                                    desiredY = np.average(xnorm)*480  #vector from striker to yImp
                                     print("small")
                                     #desiredY = (MoveY*480 +strikerpos[-1][1])
                                 # print("DESIREDY",int(DesiredY))
@@ -732,47 +732,8 @@ while True:
 
 # Odrive Motor Control
     #print(desiredX,desiredY)
-    
-# =========================The interpolation of movement============================
-#     v_pixel_limit=80
-        
-
-#     if (abs(desiredY-strikerpos[0][1])<v_pixel_limit):  #in range of the stiker
-#         del_x = int(desiredY) - 25
-#         del_x = -(del_x * (11.5 / 424) - 5.75)
 
 
-
-#     else:   # out of range interpolate using v_pixel_limit
-#         del_x = int(np.sign(desiredY-strikerpos[0][1])*v_pixel_limit+strikerpos[0][1]) - 25
-#         del_x = -(del_x * (11.5 / 424) - 5.75)
-
-
-
-#     if (abs(desiredX - strikerpos[0][0]) < v_pixel_limit):  # in range of the stiker
-#         del_y = int(desiredX) - 65
-#         del_y = del_y * (6.5 / 116) - 3.25  # FLIPPED? OK?
-
-
-
-#     else:
-#         del_y = int(np.sign(desiredX-strikerpos[0][0])*v_pixel_limit+strikerpos[0][0]) - 65
-#         del_y = del_y * (6.5 / 116) - 3.25  # FLIPPED? OK?
-#     
-#     
-# =============================================================================
-
-
-# WASD TESTING
-    if(wasd):
-        if cv2.waitKey(33) == ord('a'):
-        	desiredY=desiredY-10
-        if cv2.waitKey(33) == ord('d'):
-        	desiredY=desiredY+10
-        if cv2.waitKey(33) == ord('s'):
-            desiredX=desiredX-10
-        if cv2.waitKey(33) == ord('w'):
-            desiredX=desiredX+10
 
 
 
@@ -798,22 +759,50 @@ while True:
         print(o_error,strikerpos,del_x,del_y)
 
     #
+    # WASD TESTING
+    if(wasd):
+         if cv2.waitKey(1) == ord('a'):
+            desiredY=desiredY-10
+         if cv2.waitKey(1) == ord('d'):
+            desiredY=desiredY+10
+         if cv2.waitKey(1) == ord('s'):
+             desiredX=desiredX-10
+         if cv2.waitKey(1) == ord('w'):
+             desiredX=desiredX+10
 
-    
+    #
+    # =============================================================================
 
-    
+    # del_x = -(del_x * (11.5/ (412)(150)) - 5.75)
+    #         del_y = int(desiredX) - rect_bound[0][0]
+    #         del_y = del_y * (6.5 / (150)) - 3.25  # FLIPPED? OK?
+
+    # del_x = int(desiredY) - rect_bound[0][1]
+    # #lenght of rect bound
+    # del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))- 5.75)+o_error[0]
+    # del_y = int(desiredX) - rect_bound[0][0]
+    # del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25+ o_error[1]  # FLIPPED? OK?
 
 
-    del_x = int(desiredY) - rect_bound[0][1]
-    #lenght of rect bound 
-    del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1])) - 5.75+ o_error[0])
-    del_y = int(desiredX) - rect_bound[0][0]
-    del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25+ o_error[1]  # FLIPPED? OK?
-    #print(del_x, del_y)
-     #errorCorrection
-    #stiker_vel=np.nanmean(strikerpos, axis=0)
-    #if np.mean(stiker_vel)<3 and np.nanmean(strikerpos,axis=0):
-        #check error
+    v_pixel_limit=100
+
+    if (abs(desiredY-strikerpos[0][1])<v_pixel_limit):  #in range of the stiker
+        del_x = int(desiredY) - rect_bound[0][1]
+        # lenght of rect bound
+        del_x = -(del_x * (o_limit_x / (rect_bound[1][1] - rect_bound[0][1])) - 5.75) + o_error[0]
+
+    else:   # out of range interpolate using v_pixel_limit
+        del_x = int(np.sign(desiredY-strikerpos[0][1])*v_pixel_limit+strikerpos[0][1]) - 25
+        del_x = -(del_x * (o_limit_x / (rect_bound[1][1] - rect_bound[0][1])) - 5.75) + o_error[0]
+
+    if (abs(desiredX - strikerpos[0][0]) < v_pixel_limit):  # in range of the stiker
+        del_y = int(desiredX) - rect_bound[0][0]
+        del_y = del_y * (o_limit_y / (rect_bound[1][0] - rect_bound[0][0])) - 3.25 + o_error[1]  # FLIPPED? OK?
+
+    else:
+        del_y = int(np.sign(desiredX-strikerpos[0][0])*v_pixel_limit+strikerpos[0][0]) - rect_bound[0][0]
+        del_y = del_y * (o_limit_y / (rect_bound[1][0] - rect_bound[0][0])) - 3.25 + o_error[1]  # FLIPPED? OK?
+
     
     
     del_a = (del_x + del_y)
@@ -829,7 +818,9 @@ while True:
 
             my_drive.axis1.controller.input_pos = del_a
             my_drive.axis0.controller.input_pos = del_b
+            print(del_x, del_y)
         else:
+            print(del_x,del_y)
             print("error")
 
 
@@ -840,10 +831,10 @@ while True:
 
     # show the frame to our screen
     cv2.imshow("Snipe-E Tracking Feed", imgOutput)
-    key = cv2.waitKey(1) & 0xFF
+    #key = cv2.waitKey(1) & 0xFF
     # if the 'q' key is pressed, stop the loop
-    if key == ord("q"):
-        break
+    #if key == ord("q"):
+    #    break
 
 
 
