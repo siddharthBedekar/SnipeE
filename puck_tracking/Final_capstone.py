@@ -26,9 +26,6 @@ from ast import literal_eval as make_tuple
 pingT = 0
 pinged = False
 
-#read data globals
-desiredX=123
-desiredY=237
 
 
 #Tracking Center vals
@@ -47,6 +44,11 @@ first_run=True
 
 #Input Bound
 rect_bound=[[65, 25],[142 + 65, 25 + 435]]
+
+
+#read data globals
+desiredX= rect_bound[0][0]+(rect_bound[1][0]-rect_bound[0][0])/2
+desiredY= rect_bound[0][1]+(rect_bound[1][1]-rect_bound[0][1])/2
 
 #(imgOutput, (65, 25), (142 + 65, 25 + 435), (0, 0, 255), 1)
 
@@ -245,7 +247,9 @@ def make_HSV_window():
     # add exit condition
     switch1 = 'Good? \n->1'
     cv2.createTrackbar(switch1, "HSV", 0, 1, empty)
-
+# del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1])) - 5.75)
+#         del_y = int(desiredX) - rect_bound[0][0]
+#         del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25  # FLIPPED? OK?
 
 def create_Odrive_map(spos,opos):
     global rect_bound
@@ -253,11 +257,9 @@ def create_Odrive_map(spos,opos):
     global o_limit_y
     px=spos[0]-rect_bound[0][0]#distx from top left of bound
     py=spos[1]-rect_bound[0][1]#disty from top left of bound
-    err_x=opos[0]-px
-    err_y=opos[1]-py#table cord converted to odrive cart
-    error_y=err_x* (o_limit_y / rect_bound[1][0]-rect_bound[0][0])
-    error_x=err_y*(o_limit_x / rect_bound[1][1]-rect_bound[0][1])
-    return([error_x,error_y])
+    err_y=opos[1]-(px* (o_limit_y / (rect_bound[1][0]-rect_bound[0][0]))- 3.25)
+    err_x=opos[0]+(py* (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))-5.75)#table cord converted to odrive cart
+    return([err_x,err_y])
     
     
     
@@ -668,10 +670,10 @@ while True:
 
 
     # AI calculation
+    puckpos = np.array([i for i in pts11 if i])
+    puckpos = puckpos[~np.isnan(puckpos).any(axis=-1)]
+    strikerpos = np.array([i for i in pts22 if i])
     if (ai):
-        puckpos = np.array([i for i in pts11 if i])
-        puckpos = puckpos[~np.isnan(puckpos).any(axis=-1)]
-        strikerpos = np.array([i for i in pts22 if i])
         act_time = 0.1
         if (puckpos.shape[0] > 2 and len(strikerpos) > 0):
             avgvel = -1 * np.average(np.diff(puckpos, axis=0), axis=0)
@@ -729,7 +731,7 @@ while True:
     #print(desiredX, desiredY)
 
 # Odrive Motor Control
-    print(desiredX,desiredY)
+    #print(desiredX,desiredY)
     
 # =========================The interpolation of movement============================
 #     v_pixel_limit=80
@@ -764,9 +766,9 @@ while True:
 # WASD TESTING
     if(wasd):
         if cv2.waitKey(33) == ord('a'):
-        	desiredY=desiredY+10
-        if cv2.waitKey(33) == ord('d'):
         	desiredY=desiredY-10
+        if cv2.waitKey(33) == ord('d'):
+        	desiredY=desiredY+10
         if cv2.waitKey(33) == ord('s'):
             desiredX=desiredX-10
         if cv2.waitKey(33) == ord('w'):
@@ -779,20 +781,23 @@ while True:
 
     # draw required position
     cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 3, (250, 250, 250), cv2.FILLED)
-
-
+    #
+    #
     if (first_run): #or np.mean(stiker_vel)<1 and np.nanmean(strikerpos,axis=0)): addd on error if uncommented
-        
+
         del_x = int(desiredY) - rect_bound[0][1]
-        #lenght of rect bound 
-        del_x = -(del_x * (o_limit_x/ rect_bound[1][1]-rect_bound[0][1]) - 5.75)
+        #lenght of rect bound
+        del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1])) - 5.75)
         del_y = int(desiredX) - rect_bound[0][0]
-        del_y = del_y * (o_limit_y / rect_bound[1][0]-rect_bound[0][0]) - 3.25  # FLIPPED? OK?
+        del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25  # FLIPPED? OK?
         print("correction")
         first_run=False
-        error=create_Odrive_map([strikerpos[0][0],strikerpos[0][1]],[del_x,del_y])
-        
-        
+        temp_e=create_Odrive_map([strikerpos[0][0],strikerpos[0][1]],[del_x,del_y])
+        for i in range(2):
+            o_error[i]=o_error[i]+ temp_e[i]
+        print(o_error,strikerpos,del_x,del_y)
+
+    #
 
     
 
@@ -801,11 +806,10 @@ while True:
 
     del_x = int(desiredY) - rect_bound[0][1]
     #lenght of rect bound 
-    del_x = -(del_x * (o_limit_x/ rect_bound[1][1]-rect_bound[0][1]) - 5.75+ error[0])
+    del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1])) - 5.75+ o_error[0])
     del_y = int(desiredX) - rect_bound[0][0]
-    del_y = del_y * (o_limit_y / rect_bound[1][0]-rect_bound[0][0]) - 3.25+ error[1]  # FLIPPED? OK?
-    
-    
+    del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25+ o_error[1]  # FLIPPED? OK?
+    #print(del_x, del_y)
      #errorCorrection
     #stiker_vel=np.nanmean(strikerpos, axis=0)
     #if np.mean(stiker_vel)<3 and np.nanmean(strikerpos,axis=0):
@@ -822,6 +826,7 @@ while True:
         if (del_a - del_b < o_limit_y) and (del_a + del_b < o_limit_x) and (del_a + del_b > -o_limit_x) and (del_a - del_b > -o_limit_y):
             # print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
             # print("Delta A:" + str(del_a) + " Delta B:" + str(del_b))
+
             my_drive.axis1.controller.input_pos = del_a
             my_drive.axis0.controller.input_pos = del_b
         else:
