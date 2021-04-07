@@ -26,8 +26,13 @@ start_m1 = my_drive.axis1.controller.input_pos
 
 print(str(start_m0)+","+str(start_m1))
 
-while(round(my_drive.axis1.controller.input_pos) !=0 or round(my_drive.axis0.controller.input_pos)!=0):
-
+while():
+	if (start_m0 < 1):
+		my_drive.axis0.controller.input_pos = 0
+		start_m0 = 0
+	if (start_m1 < 1):
+		my_drive.axis0.controller.input_pos = 0
+		start_m0 = 0
 	if(start_m0!=0):
 		if(start_m0>0):
 			my_drive.axis0.controller.input_pos = start_m0 -1
@@ -42,6 +47,9 @@ while(round(my_drive.axis1.controller.input_pos) !=0 or round(my_drive.axis0.con
 			start_m1=start_m1-1
 		else:
 			my_drive.axis1.controller.input_pos = start_m1 +1
-			start_m1=start_m1+1		
-	print(str(start_m0)+","+str(start_m1))
+			start_m1=start_m1+1
 	time.sleep(0.5)
+	print(str(my_drive.axis0.controller.input_pos) + "," + str(my_drive.axis0.controller.input_pos))
+	if (start_m0 == 0 and start_m1 == 0):
+		break
+

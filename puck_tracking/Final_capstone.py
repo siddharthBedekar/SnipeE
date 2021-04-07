@@ -12,8 +12,10 @@ import time
 #odrive imports
 import pygame
 import sys
+
 import odrive
 from odrive.enums import *
+
 import time
 
 #for storing preset
@@ -23,6 +25,7 @@ from ast import literal_eval as make_tuple
 # SERVER ---------------------------------------------------------------------------------------------------------------
 
 #globals for server
+
 pingT = 0
 pinged = False
 
@@ -96,6 +99,20 @@ def rxDesiredCoords(data):
     desiredY = float(temp[1])
 
 
+#odrive plotter
+
+def liveplot():
+    from odrive.utils import start_liveplotter
+    start_liveplotter(lambda: [
+    my_drive.axis0.encoder.vel_estimate,
+    my_drive.axis0.encoder.pos_estimate,
+    my_drive.axis1.encoder.vel_estimate,
+    my_drive.axis1.encoder.pos_estimate
+    ])
+
+
+
+
 #functions for server
 def pingTest():
     print("Performing latency test...")
@@ -107,6 +124,10 @@ def pingTest():
 
 def runServer():
     socketio.run(app, host='0.0.0.0')
+def pt_to_line(p1,v,p3):
+    t=-sum((p1-p3)*v)/sum(v**2)
+    intercept=(p1+v*t-p3)
+    return [intercept,t]
 
 # MOTOR CONTROL --------------------------------------------------------------------------------------------------------
 # def runMotorControl():
@@ -261,8 +282,7 @@ def create_Odrive_map(spos,opos):
     err_x=opos[0]+(py* (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))-5.75)#table cord converted to odrive cart
     return([err_x,err_y])
     
-    
-    
+
 
 
 ####TEMP TESTING NO threading on MOTOR
@@ -292,6 +312,8 @@ if (loadO):
     time.sleep(0.1)
     my_drive.axis1.controller.config.input_mode = INPUT_MODE_TRAP_TRAJ #INPUT_MODE_POS_FILTER
     time.sleep(0.1)
+    liveplot()
+    #start_liveplotter(lambda: [((my_drive.axis0.encoder.vel_estimate),(my_drive.axis0.motor.current_control.Iq_setpoint * my_drive.axis0.motor.config.torque_constant))])
 
 if CALIBRATING:
     print("Calibrating Object Detection...")
@@ -677,7 +699,6 @@ while True:
         act_time = 14
         if(first_run == False):
             desiredX = 80
-        encount_pt=160
         if (puckpos.shape[0] > 2 and len(strikerpos) > 0):
             avgvel = -1 * np.average(np.diff(puckpos, axis=0), axis=0)
             speed = np.sum(np.abs(avgvel)) / 2
@@ -687,6 +708,7 @@ while True:
                     # if abs(avgvel[1]) <2 and((act_time > abs(deltax / avgvel[0]) or puckpos[0][0] < rect_bound[1][0])):
                     #     desiredX = 110
                     #     print("Attack")
+                    encount_pt = 160
                     deltax = (puckpos[0][0] - encount_pt)
                     yp2c = -deltax * avgvel[1] / avgvel[0] + puckpos[0][1]
                     cv2.line(imgOutput, tuple(puckpos[0][:].astype(int)),
@@ -700,29 +722,34 @@ while True:
                         Xr = int(puckpos[0][0] + (480 - puckpos[0][1]) * avgvel[0] / avgvel[1])
                         cv2.line(imgOutput, (Xr, 480), (int(encount_pt), int(yImp)), (255, 0, 0), 5)
                     else:# straight
+                        displace = pt_to_line(puckpos[0],avgvel,strikerpos[0])[0]
+                        print(displace, strikerpos)
+                        desiredX,desiredY=strikerpos[0]+displace
+
+                        cv2.line(imgOutput, tuple(strikerpos[0].astype(int)), tuple((strikerpos[0]+displace).astype(int)), (255, 0, 0), 5)
                         yImp = yp2c
 
                         # print("No Bound", avgvel,yp2c, yImp)
-                    if np.isnan(yImp) or np.isinf(yImp):
-                        print("Nan or inf")
-                    else:
-                        #print(yImp)
-                        if (yImp < 480 and yImp > 0):
-                            aiy.appendleft(yImp)
-                            aiy_pop_count = 2
-                            if (len(aiy) > 2):
-                                xnorm = np.array(aiy) / 480
-                                #print(xnorm)
-                                xnorm = xnorm[abs(xnorm - np.average(xnorm)) < 0.2]
-                                if len(xnorm)>0 and np.isnan(np.average(xnorm) * 480) == False:
-                                    temp_y= np.average(xnorm) * 480
-                                    if temp_y<rect_bound[0][1]:
-                                        desiredY=rect_bound[0][1]+2
-                                        desiredX = encount_pt
-                                    else:
-                                        desiredY = np.average(xnorm)*480  #vector from striker to yImp
-                                        desiredX=encount_pt
-                                cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 20, (250, 150, 250), cv2.FILLED)
+                    # if np.isnan(yImp) or np.isinf(yImp):
+                    #     print("Nan or inf")
+                    # else:
+                    #     #print(yImp)
+                    #     if (yImp < 480 and yImp > 0):
+                    #         aiy.appendleft(yImp)
+                    #         aiy_pop_count = 2
+                    #         if (len(aiy) > 2):
+                    #             xnorm = np.array(aiy) / 480
+                    #             #print(xnorm)
+                    #             xnorm = xnorm[abs(xnorm - np.average(xnorm)) < 0.2]
+                    #             if len(xnorm)>0 and np.isnan(np.average(xnorm) * 480) == False:
+                    #                 temp_y= np.average(xnorm) * 480
+                    #                 if temp_y<rect_bound[0][1]:
+                    #                     desiredY=rect_bound[0][1]+2
+                    #                     desiredX = encount_pt
+                    #                 else:
+                    #                     desiredY = np.average(xnorm)*480  #vector from striker to yImp
+                    #                     desiredX=encount_pt
+                        cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 20, (250, 150, 250), cv2.FILLED)
                 else:
                     if (avgvel[0] >-0.1 and (puckpos[0][0] > rect_bound[1][0]) or (puckpos[0][0] < rect_bound[0][0]) ):# return to default position
                         desiredY=(rect_bound[1][1]-rect_bound[0][1])/2+rect_bound[0][1]#center the striker
@@ -756,7 +783,7 @@ while True:
     cv2.rectangle(imgOutput, tuple(rect_bound[0]), tuple(rect_bound[1]), (0, 0, 255), 1)
     #
     # # draw required position
-    cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 3, (250, 250, 250), cv2.FILLED)
+    cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 5, (250, 250, 250), cv2.FILLED)
     #
     #
     if (first_run): #or np.mean(stiker_vel)<1 and np.nanmean(strikerpos,axis=0)): addd on error if uncommented
@@ -788,11 +815,11 @@ while True:
     #
     # =============================================================================
 
-    print(desiredX,desiredY)
+    #print(desiredX,desiredY)
     if desiredY<rect_bound[0][1]:
         desiredY=rect_bound[0][1]+8
     elif (desiredY>rect_bound[1][1]):
-        desiredY = desiredY = rect_bound[0][1] -8
+        desiredY  = rect_bound[1][1] -8
     if desiredX<rect_bound[0][0]:
         desiredX=rect_bound[0][0]+8
     elif (desiredX>rect_bound[1][0]):
@@ -848,7 +875,7 @@ while True:
             my_drive.axis0.controller.input_pos = del_b
             #print(del_x, del_y)
         else:
-            print(del_x,del_y)
+            #print(del_x,del_y)
             print("error")
 
 

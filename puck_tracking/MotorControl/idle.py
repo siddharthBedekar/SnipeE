@@ -9,6 +9,9 @@ import math
 print("finding an odrive...")
 my_drive = odrive.find_any()
 
+my_drive.axis0.controller.input_pos = 0
+my_drive.axis0.controller.input_pos = 0
+time.sleep(2)
 
 my_drive.axis0.requested_state = AXIS_STATE_IDLE
 my_drive.axis1.requested_state = AXIS_STATE_IDLE

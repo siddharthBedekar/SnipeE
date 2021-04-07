@@ -28,16 +28,16 @@ if my_drive.axis1.motor.is_calibrated != True:
 my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
 time.sleep(0.1)
 my_drive.axis0.controller.config.input_mode = INPUT_MODE_TRAP_TRAJ
+
+#my_drive.axis0.controller.config.input_mode = INPUT_MODE_POS_FILTER
 time.sleep(0.1)
-# my_drive.axis0.controller.config.input_mode = INPUT_MODE_POS_FILTER
-# time.sleep(0.1)
 
 my_drive.axis1.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
 time.sleep(0.1)
-# my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
-# time.sleep(0.1)
+#my_drive.axis1.controller.config.input_mode = INPUT_MODE_POS_FILTER
 my_drive.axis1.controller.config.input_mode = INPUT_MODE_TRAP_TRAJ
 time.sleep(0.1)
+
 #
 pygame.init() 
   
@@ -57,7 +57,7 @@ y = res_y/2
 radius = 5
 
 # velocity / speed of movement 
-vel = 1
+vel = 5
 
 # Indicates pygame is running 
 run = True
