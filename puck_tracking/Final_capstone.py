@@ -46,7 +46,7 @@ first_run=True
 
 
 #Input Bound
-rect_bound=[[48, 50],[192, 430]]
+rect_bound=[[48, 45],[192, 430]]
 
 
 #read data globals
@@ -56,7 +56,7 @@ desiredY= rect_bound[0][1]+(rect_bound[1][1]-rect_bound[0][1])/2
 #(imgOutput, (65, 25), (142 + 65, 25 + 435), (0, 0, 255), 1)
 
 #modes highest priority first
-wasd=True
+wasd=False
 ai=False
 
 
@@ -766,11 +766,7 @@ while True:
 
 
 
-    #Use rect_bound
-    cv2.rectangle(imgOutput, tuple(rect_bound[0]), tuple(rect_bound[1]), (0, 0, 255), 1)
-    #
-    # # draw required position
-    cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 5, (250, 250, 250), cv2.FILLED)
+
     #
     #
     if (first_run): #or np.mean(stiker_vel)<1 and np.nanmean(strikerpos,axis=0)): addd on error if uncommented
@@ -804,14 +800,18 @@ while True:
 
     #print(desiredX,desiredY)
     if desiredY<rect_bound[0][1]:
-        desiredY=rect_bound[0][1]+8
+        desiredY= rect_bound[0][1]-o_error[0] * (rect_bound[1][1] - rect_bound[0][1]) / o_limit_x
     elif (desiredY>rect_bound[1][1]):
-        desiredY  = rect_bound[1][1] -8
+        desiredY  = rect_bound[1][1] + o_error[0] * (rect_bound[1][1] - rect_bound[0][1]) / o_limit_x
     if desiredX<rect_bound[0][0]:
-        desiredX=rect_bound[0][0]+8
+        desiredX=rect_bound[0][0]- o_error[1] * (rect_bound[1][0] - rect_bound[0][0]) / o_limit_y
     elif (desiredX>rect_bound[1][0]):
-        desiredX = rect_bound[1][0] -8
-
+        desiredX = rect_bound[1][0]+ o_error[1] * (rect_bound[1][0] - rect_bound[0][0]) / o_limit_y
+    # Use rect_bound
+    cv2.rectangle(imgOutput, tuple(rect_bound[0]), tuple(rect_bound[1]), (0, 0, 255), 1)
+    #
+    # # draw required position
+    cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 5, (250, 250, 250), cv2.FILLED)
 
     del_x = int(desiredY) - rect_bound[0][1]
     #lenght of rect bound
@@ -854,7 +854,7 @@ while True:
     if (loadO):  # only run if loadO = True
         #print("motor vals:", del_a, del_b)
         #formula delx=1/2*(dela+delb)
-        if (del_a - del_b < o_limit_y) and (del_a + del_b < o_limit_x) and (del_a + del_b > -o_limit_x) and (del_a - del_b > -o_limit_y):
+        if (del_a - del_b <= o_limit_y) and (del_a + del_b <= o_limit_x) and (del_a + del_b >= -o_limit_x) and (del_a - del_b >= -o_limit_y):
             # print("Delta X:"+str(del_x)+" Delta Y:"+str(del_y))
             # print("Delta A:" + str(del_a) + " Delta B:" + str(del_b))
 

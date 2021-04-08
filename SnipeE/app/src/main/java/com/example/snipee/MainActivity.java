@@ -42,11 +42,11 @@ public class MainActivity extends AppCompatActivity {
     final int CAM_X = 640;
     final int CAM_Y = 480;
     final int FILTER_WINDOW_SIZE = 2;
-    final String ALY_URI = "http://192.168.1.84:5000";
+    final String ALY_URI = "http://192.168.1.92:5000";
     final String NOUB_URI = "http://192.168.1.65:5000";
-    final String SERVER_URI = NOUB_URI;
+    final String SERVER_URI = ALY_URI;
     final int BOUND_MARGIN_X = 92;
-    final int BOUND_MARGIN_Y = 319;
+    final int BOUND_MARGIN_Y = 391;
     final int CENTER_X = 544;
     final int CENTER_Y = 1882;
     final int BOUND_OFFSET = 175;
@@ -68,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
 //        this.interp = new Coord_Interpolator();
         this.configureScaling();
         this.socket = initSocket();
-        this.bound = new Rect( BOUND_MARGIN_X, (screenBoundY/2)+BOUND_MARGIN_Y+BOUND_OFFSET,
+        this.bound = new Rect( BOUND_MARGIN_X, (screenBoundY/2)+BOUND_MARGIN_Y+BOUND_OFFSET-100,
                 screenBoundX-BOUND_MARGIN_X, screenBoundY-BOUND_MARGIN_Y+BOUND_OFFSET);
         this.attachTouchListeners();
         this.attachSocketListeners();   //for server to client socket comms
@@ -338,7 +338,7 @@ public class MainActivity extends AppCompatActivity {
                 RelativeLayout.LayoutParams.MATCH_PARENT,
                 RelativeLayout.LayoutParams.MATCH_PARENT
         );
-        params.setMargins(BOUND_MARGIN_X, screenBoundY/2 + BOUND_MARGIN_Y+BOUND_OFFSET, BOUND_MARGIN_X, BOUND_MARGIN_Y-BOUND_OFFSET);
+        params.setMargins(BOUND_MARGIN_X, screenBoundY/2 + BOUND_MARGIN_Y+BOUND_OFFSET-100, BOUND_MARGIN_X, BOUND_MARGIN_Y-BOUND_OFFSET);
         TextView mybox = findViewById(R.id.mybox);
         mybox.setLayoutParams(params);
 
