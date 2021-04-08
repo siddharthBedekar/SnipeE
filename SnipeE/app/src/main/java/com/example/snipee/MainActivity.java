@@ -29,8 +29,10 @@ public class MainActivity extends AppCompatActivity {
     private int puck_len;
     private Socket socket;
     private int screenBoundX, screenBoundY;
-    private Coord_filter filter;    //moving average filter
-    private Coord_Interpolator interp; //interpolator
+//    private Coord_filter puckfilter;    //moving average filter
+//    private Coord_filter robotfilter;    //moving average filter
+//    private Coord_filter humanfilter;    //moving average filter
+//    private Coord_Interpolator interp; //interpolator
     private Rect bound;
     private boolean dataValid;
 
@@ -39,13 +41,16 @@ public class MainActivity extends AppCompatActivity {
     //CONSTANTS
     final int CAM_X = 640;
     final int CAM_Y = 480;
-    final int FILTER_WINDOW_SIZE = 5;
-    final String SERVER_URI = "http://192.168.1.27:5000";
+    final int FILTER_WINDOW_SIZE = 2;
+    final String ALY_URI = "http://192.168.1.84:5000";
+    final String NOUB_URI = "http://192.168.1.65:5000";
+    final String SERVER_URI = NOUB_URI;
     final int BOUND_MARGIN_X = 92;
     final int BOUND_MARGIN_Y = 319;
     final int CENTER_X = 544;
     final int CENTER_Y = 1882;
     final int BOUND_OFFSET = 175;
+
 
 
     @Override
@@ -57,8 +62,10 @@ public class MainActivity extends AppCompatActivity {
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_main);
 
-        this.filter = new Coord_filter(FILTER_WINDOW_SIZE);
-        this.interp = new Coord_Interpolator();
+//        this.puckfilter = new Coord_filter(FILTER_WINDOW_SIZE);
+//        this.robotfilter = new Coord_filter(FILTER_WINDOW_SIZE);
+//        this.humanfilter = new Coord_filter(FILTER_WINDOW_SIZE);
+//        this.interp = new Coord_Interpolator();
         this.configureScaling();
         this.socket = initSocket();
         this.bound = new Rect( BOUND_MARGIN_X, (screenBoundY/2)+BOUND_MARGIN_Y+BOUND_OFFSET,
@@ -127,8 +134,8 @@ public class MainActivity extends AppCompatActivity {
                     this.dataValid = newX>=bound.left && newX<=bound.right && newY>=bound.top+half && newY<=bound.bottom+half;
 //                    Log.d("test", Boolean.toString(dataValid));
 //                    Log.d("test2", Integer.toString(screenBoundX) + ", " + Integer.toString(screenBoundY));
-                    this.desiredX = (newX-half);
-                    this.desiredY = (newY-half*2);
+                    this.desiredX = (newX);
+                    this.desiredY = (newY-half);
                     userStriker.setX(newX-half);
                     userStriker.setY(newY-half*2);
                     break;
@@ -175,7 +182,7 @@ public class MainActivity extends AppCompatActivity {
                                         Float.parseFloat(params[1]));
 
 //            //apply filter
-//            newCoords = filter.getFilteredCoords(newCoords[0],
+//            newCoords = puckfilter.getFilteredCoords(newCoords[0],
 //                                                 newCoords[1]);
 
 //            //apply interpolation
@@ -213,7 +220,7 @@ public class MainActivity extends AppCompatActivity {
                     Float.parseFloat(params[1]));
 
 //            //apply filter
-//            newCoords = filter.getFilteredCoords(newCoords[0],
+//            newCoords = robotfilter.getFilteredCoords(newCoords[0],
 //                    newCoords[1]);
 
 //            //apply interpolation
@@ -238,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
                     Float.parseFloat(params[1]));
 
 //            //apply filter
-//            newCoords = filter.getFilteredCoords(newCoords[0],
+//            newCoords = humanfilter.getFilteredCoords(newCoords[0],
 //                    newCoords[1]);
 
 //            //apply interpolation
