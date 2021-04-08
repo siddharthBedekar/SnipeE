@@ -56,15 +56,15 @@ desiredY= rect_bound[0][1]+(rect_bound[1][1]-rect_bound[0][1])/2
 #(imgOutput, (65, 25), (142 + 65, 25 + 435), (0, 0, 255), 1)
 
 #modes highest priority first
-wasd=False
+wasd=True
 ai=False
 
 
 #loadOdrive
 loadO = True
 o_limit_lower=[]
-o_limit_x=11.5
-o_limit_y=6.5
+o_limit_x=12
+o_limit_y=7
 o_error=[0,0]
 
 #calibration flag
@@ -278,8 +278,8 @@ def create_Odrive_map(spos,opos):
     global o_limit_y
     px=spos[0]-rect_bound[0][0]#distx from top left of bound
     py=spos[1]-rect_bound[0][1]#disty from top left of bound
-    err_y=opos[1]-(px* (o_limit_y / (rect_bound[1][0]-rect_bound[0][0]))- 3.25)
-    err_x=opos[0]+(py* (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))-5.75)#table cord converted to odrive cart
+    err_y=opos[1]-(px* (o_limit_y / (rect_bound[1][0]-rect_bound[0][0]))- o_limit_y/2)
+    err_x=opos[0]+(py* (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))-o_limit_x/2)#table cord converted to odrive cart
     return([err_x,err_y])
     
 
@@ -700,14 +700,14 @@ while True:
     puckpos = puckpos[~np.isnan(puckpos).any(axis=-1)]
     strikerpos = np.array([i for i in pts22 if i])
     if (ai):
-        act_time = 30
+        act_time = 60
         if (puckpos.shape[0] > 2 and len(strikerpos) > 0):
             avgvel = -1 * np.average(np.diff(puckpos, axis=0), axis=0)
             speed = np.sum(np.abs(avgvel)) / 2
 
             try:
                 if (speed > 1 and avgvel[0] < -8):#moving left
-                    encount_pt = 160
+                    encount_pt = strikerpos[0][0]
                     deltax = (puckpos[0][0] - encount_pt)
                     yp2c = -deltax * avgvel[1] / avgvel[0] + puckpos[0][1]
                     cv2.line(imgOutput, tuple(puckpos[0][:].astype(int)),
@@ -732,52 +732,27 @@ while True:
                         desiredX,desiredY=strikerpos[0]+displace
 
                         cv2.line(imgOutput, tuple(strikerpos[0].astype(int)), tuple((strikerpos[0]+displace).astype(int)), (255, 0, 0), 5)
-                        if abs(strikerpos[0][0] - desiredX )< 10 and abs(strikerpos[0][1] - desiredY) < 10:  # aligned
+                        if abs(strikerpos[0][0] - desiredX )< 100 and abs(strikerpos[0][1] - desiredY) < 100 :  # aligned
                             diff=(strikerpos[0]-puckpos[0])
                             if (act_time >np.sqrt(diff.dot(diff))/np.sqrt(avgvel.dot(avgvel))):  # puck is close
 
-                                desiredX=desiredX-avgvel[0]/abs(avgvel[0])*20
-                                desiredY=desiredY-avgvel[1] * 10
-                        yImp = yp2c
-
-                        # print("No Bound", avgvel,yp2c, yImp)
-                    # if np.isnan(yImp) or np.isinf(yImp):
-                    #     print("Nan or inf")
-                    # else:
-                    #     #print(yImp)
-                    #     if (yImp < 480 and yImp > 0):
-                    #         aiy.appendleft(yImp)
-                    #         aiy_pop_count = 2
-                    #         if (len(aiy) > 2):
-                    #             xnorm = np.array(aiy) / 480
-                    #             #print(xnorm)
-                    #             xnorm = xnorm[abs(xnorm - np.average(xnorm)) < 0.2]
-                    #             if len(xnorm)>0 and np.isnan(np.average(xnorm) * 480) == False:
-                    #                 temp_y= np.average(xnorm) * 480
-                    #                 if temp_y<rect_bound[0][1]:
-                    #                     desiredY=rect_bound[0][1]+2
-                    #                     desiredX = encount_pt
-                    #                 else:
-                    #                     desiredY = np.average(xnorm)*480  #vector from striker to yImp
-                    #                     desiredX=encount_pt
+                                desiredX=desiredX-avgvel[0]/abs(avgvel[0])*80
+                                desiredY=desiredY-avgvel[1]/abs(avgvel[0])*80
                         cv2.circle(imgOutput, (int(desiredX), int(desiredY)), 20, (250, 150, 250), cv2.FILLED)
                 else:
                     if (avgvel[0] >-0.1 and (puckpos[0][0] > rect_bound[1][0]) or (puckpos[0][0] < rect_bound[0][0]) ):# return to default position
                         desiredY=(rect_bound[1][1]-rect_bound[0][1])/2+rect_bound[0][1]#center the striker
                         desiredX = 80
-                    # if ((puckpos[0][0] > rect_bound[0][0]) and (puckpos[0][0] < rect_bound[1][0])):# inside the striking area
+
+
+                    #if ((puckpos[0][0] > rect_bound[0][0]) and (puckpos[0][0] < rect_bound[1][0]) and abs(np.sqrt(avgvel.dot(avgvel)))<2:# not moving inside the striking area
+                        #if striker#striker infront
                     #     if abs(puckpos[0][1]- strikerpos[0][1])>60:
                     #         desiredY= puckpos[0][1]
                     #     elif strikerpos[0][0]>rect_bound[0][0]+20:# it is infront of the
                     #         desiredX= rect_bound[0][0]+10
                     #     else:
                     #         desiredX=strikerpos[0][0]+20
-                    if aiy:
-                        if aiy_pop_count == 0:
-                            aiy.pop()
-                            aiy_pop_count = 2
-                        else:
-                            aiy_pop_count = aiy_pop_count - 1
             except OverflowError:
                 print("yikes")
             except ValueError:
@@ -802,9 +777,9 @@ while True:
 
         del_x = int(desiredY) - rect_bound[0][1]
         #lenght of rect bound
-        del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1])) - 5.75)
+        del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1])) - o_limit_x/2)
         del_y = int(desiredX) - rect_bound[0][0]
-        del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25  # FLIPPED? OK?
+        del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - o_limit_y/2  # FLIPPED? OK?
         #print("correction")
         first_run=False
         temp_e=create_Odrive_map([strikerpos[0][0],strikerpos[0][1]],[del_x,del_y])
@@ -840,9 +815,9 @@ while True:
 
     del_x = int(desiredY) - rect_bound[0][1]
     #lenght of rect bound
-    del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))- 5.75)+o_error[0]
+    del_x = -(del_x * (o_limit_x/ (rect_bound[1][1]-rect_bound[0][1]))- o_limit_x/2)+o_error[0]
     del_y = int(desiredX) - rect_bound[0][0]
-    del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) - 3.25+ o_error[1]  # FLIPPED? OK?
+    del_y = del_y * (o_limit_y / (rect_bound[1][0]-rect_bound[0][0])) -o_limit_y/2+ o_error[1]  # FLIPPED? OK?
     #
     #
     # v_pixel_limit=100000
