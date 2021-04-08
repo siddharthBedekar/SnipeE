@@ -46,7 +46,7 @@ first_run=True
 
 
 #Input Bound
-rect_bound=[[65, 25],[142 + 65, 25 + 435]]
+rect_bound=[[48, 50],[192, 430]]
 
 
 #read data globals
@@ -57,7 +57,7 @@ desiredY= rect_bound[0][1]+(rect_bound[1][1]-rect_bound[0][1])/2
 
 #modes highest priority first
 wasd=False
-ai=True
+ai=False
 
 
 #loadOdrive
@@ -125,7 +125,7 @@ def pingTest():
 def runServer():
     socketio.run(app, host='0.0.0.0')
 def pt_to_line(p1,v,p3):
-    t=-sum((p1-p3)*v)/sum(v**2)
+    t=sum((p3-p1)*v)/sum((v**2))
     intercept=(p1+v*t-p3)
     return [intercept,t]
 
@@ -301,6 +301,10 @@ if (loadO):
         my_drive.axis1.requested_state = AXIS_STATE_FULL_CALIBRATION_SEQUENCE
         while my_drive.axis1.current_state != AXIS_STATE_IDLE:
             time.sleep(0.1)
+    if(my_drive.axis0.encoder.error==0 and my_drive.axis1.encoder.error==0 ):
+        print("calabration successful")
+    else:
+        print("error: ",my_drive.axis0.encoder.error," ",my_drive.axis1.encoder.error )
 
     # PID closed loop control
     my_drive.axis0.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
@@ -529,7 +533,7 @@ while True:
 
 
     if counter22 < 2:
-        cv2.imshow("imgOutput", imgOutput)
+        #cv2.imshow("imgOutput", imgOutput)
         cv2.setMouseCallback("imgOutput", mousePoints22)
         #cv2.putText(imgOutput, "click 2 markers on table", (120, 250), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3)
 
@@ -590,7 +594,7 @@ while True:
         cv2.line(imgOutput, pts11[i - 1], pts11[i], (0, 0, 255), thickness1)
 
     # show the frame to our screen
-    cv2.imshow("Snipe-E Tracking Feed", imgOutput)
+    #cv2.imshow("Snipe-E Tracking Feed", imgOutput)
     key = cv2.waitKey(1) & 0xFF
     # if the 'q' key is pressed, stop the loop
     if key == ord("q"):
@@ -639,7 +643,7 @@ while True:
         cv2.line(imgOutput, pts22[i - 1], pts22[i], (0, 0, 255), thickness2)
 
     # show the frame to our screen
-    cv2.imshow("Snipe-E Tracking Feed", imgOutput)
+    #cv2.imshow("Snipe-E Tracking Feed", imgOutput)
     key = cv2.waitKey(1) & 0xFF
     # if the 'q' key is pressed, stop the loop
     if key == ord("q"):
@@ -696,18 +700,13 @@ while True:
     puckpos = puckpos[~np.isnan(puckpos).any(axis=-1)]
     strikerpos = np.array([i for i in pts22 if i])
     if (ai):
-        act_time = 14
-        if(first_run == False):
-            desiredX = 80
+        act_time = 30
         if (puckpos.shape[0] > 2 and len(strikerpos) > 0):
             avgvel = -1 * np.average(np.diff(puckpos, axis=0), axis=0)
             speed = np.sum(np.abs(avgvel)) / 2
 
             try:
-                if (speed > 2 and avgvel[0] < -1.5):#moving left
-                    # if abs(avgvel[1]) <2 and((act_time > abs(deltax / avgvel[0]) or puckpos[0][0] < rect_bound[1][0])):
-                    #     desiredX = 110
-                    #     print("Attack")
+                if (speed > 1 and avgvel[0] < -8):#moving left
                     encount_pt = 160
                     deltax = (puckpos[0][0] - encount_pt)
                     yp2c = -deltax * avgvel[1] / avgvel[0] + puckpos[0][1]
@@ -716,17 +715,29 @@ while True:
                     if (avgvel[1] < 0 and yp2c < 0):#top
                         yImp = abs(yp2c)
                         Xr = int(puckpos[0][0] - puckpos[0][1] * avgvel[0] / avgvel[1])
+                        displace = pt_to_line(np.array([Xr, 0]), avgvel * [1, -1], strikerpos[0])[0]
+                        desiredX, desiredY = strikerpos[0] + displace
+                        print("reflection point", Xr)
+
+
                         cv2.line(imgOutput, (Xr, 0), (int(encount_pt), int(yImp)), (255, 0, 0), 5)
                     elif (avgvel[1] > 0 and yp2c > 480):#botte,
                         yImp = 2 * 480 - yp2c
                         Xr = int(puckpos[0][0] + (480 - puckpos[0][1]) * avgvel[0] / avgvel[1])
+                        displace = pt_to_line(np.array([Xr, 480]), avgvel * [1, -1], strikerpos[0])[0]
+                        desiredX, desiredY = strikerpos[0] + displace
                         cv2.line(imgOutput, (Xr, 480), (int(encount_pt), int(yImp)), (255, 0, 0), 5)
                     else:# straight
                         displace = pt_to_line(puckpos[0],avgvel,strikerpos[0])[0]
-                        print(displace, strikerpos)
                         desiredX,desiredY=strikerpos[0]+displace
 
                         cv2.line(imgOutput, tuple(strikerpos[0].astype(int)), tuple((strikerpos[0]+displace).astype(int)), (255, 0, 0), 5)
+                        if abs(strikerpos[0][0] - desiredX )< 10 and abs(strikerpos[0][1] - desiredY) < 10:  # aligned
+                            diff=(strikerpos[0]-puckpos[0])
+                            if (act_time >np.sqrt(diff.dot(diff))/np.sqrt(avgvel.dot(avgvel))):  # puck is close
+
+                                desiredX=desiredX-avgvel[0]/abs(avgvel[0])*20
+                                desiredY=desiredY-avgvel[1] * 10
                         yImp = yp2c
 
                         # print("No Bound", avgvel,yp2c, yImp)
@@ -753,13 +764,14 @@ while True:
                 else:
                     if (avgvel[0] >-0.1 and (puckpos[0][0] > rect_bound[1][0]) or (puckpos[0][0] < rect_bound[0][0]) ):# return to default position
                         desiredY=(rect_bound[1][1]-rect_bound[0][1])/2+rect_bound[0][1]#center the striker
-                    if ((puckpos[0][0] > rect_bound[0][0]) and (puckpos[0][0] < rect_bound[1][0])):# inside the striking area
-                        if abs(puckpos[0][1]- strikerpos[0][1])>4:
-                            desiredY= puckpos[0][1]
-                        elif strikerpos[0][0]>rect_bound[0][0]+20:# it is infront of the
-                            desiredX= rect_bound[0][0]+10
-                        else:
-                            desiredX=strikerpos[0][0]+20
+                        desiredX = 80
+                    # if ((puckpos[0][0] > rect_bound[0][0]) and (puckpos[0][0] < rect_bound[1][0])):# inside the striking area
+                    #     if abs(puckpos[0][1]- strikerpos[0][1])>60:
+                    #         desiredY= puckpos[0][1]
+                    #     elif strikerpos[0][0]>rect_bound[0][0]+20:# it is infront of the
+                    #         desiredX= rect_bound[0][0]+10
+                    #     else:
+                    #         desiredX=strikerpos[0][0]+20
                     if aiy:
                         if aiy_pop_count == 0:
                             aiy.pop()
@@ -823,7 +835,7 @@ while True:
     if desiredX<rect_bound[0][0]:
         desiredX=rect_bound[0][0]+8
     elif (desiredX>rect_bound[1][0]):
-        desiredX = rect_bound[0][0] -8
+        desiredX = rect_bound[1][0] -8
 
 
     del_x = int(desiredY) - rect_bound[0][1]
